@@ -23,6 +23,9 @@ import org.apache.shardingsphere.proxy.backend.response.header.update.UpdateResp
 import org.apache.shardingsphere.proxy.backend.handler.ProxyBackendHandler;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
 
+import java.util.LinkedList;
+import java.util.List;
+
 /**
  * Skip backend handler.
  */
@@ -32,7 +35,9 @@ public final class SkipBackendHandler implements ProxyBackendHandler {
     private final SQLStatement sqlStatement;
     
     @Override
-    public ResponseHeader execute() {
-        return new UpdateResponseHeader(sqlStatement);
+    public List<ResponseHeader> execute() {
+        List<ResponseHeader> result = new LinkedList<ResponseHeader>();
+        result.add(new UpdateResponseHeader(sqlStatement));
+        return result;
     }
 }

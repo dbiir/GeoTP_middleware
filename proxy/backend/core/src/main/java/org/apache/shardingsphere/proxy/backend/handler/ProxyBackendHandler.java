@@ -22,6 +22,7 @@ import org.apache.shardingsphere.proxy.backend.response.header.ResponseHeader;
 
 import java.sql.SQLException;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * Proxy backend handler.
@@ -34,8 +35,8 @@ public interface ProxyBackendHandler {
      * @return backend response
      * @throws SQLException SQL exception
      */
-    ResponseHeader execute() throws SQLException;
-    
+    List<ResponseHeader> execute() throws SQLException;
+
     /**
      * Goto next result value.
      *

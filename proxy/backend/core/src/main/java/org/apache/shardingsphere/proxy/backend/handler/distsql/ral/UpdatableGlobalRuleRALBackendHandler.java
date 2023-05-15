@@ -31,6 +31,7 @@ import org.apache.shardingsphere.proxy.backend.response.header.update.UpdateResp
 
 import java.util.Collection;
 import java.util.LinkedList;
+import java.util.List;
 
 /**
  * Updatable RAL backend handler for global rule.
@@ -45,7 +46,8 @@ public final class UpdatableGlobalRuleRALBackendHandler implements DistSQLBacken
     
     @SuppressWarnings({"rawtypes", "unchecked"})
     @Override
-    public ResponseHeader execute() {
+    public List<ResponseHeader> execute() {
+        List<ResponseHeader> result = new LinkedList<>();
         GlobalRuleRALUpdater globalRuleUpdater = TypedSPILoader.getService(GlobalRuleRALUpdater.class, sqlStatement.getClass().getName());
         Class<? extends RuleConfiguration> ruleConfigClass = globalRuleUpdater.getRuleConfigurationClass();
         ContextManager contextManager = ProxyContext.getInstance().getContextManager();
@@ -53,7 +55,8 @@ public final class UpdatableGlobalRuleRALBackendHandler implements DistSQLBacken
         RuleConfiguration currentRuleConfig = findCurrentRuleConfiguration(ruleConfigurations, ruleConfigClass);
         globalRuleUpdater.checkSQLStatement(currentRuleConfig, sqlStatement);
         contextManager.getInstanceContext().getModeContextManager().alterGlobalRuleConfiguration(processUpdate(ruleConfigurations, sqlStatement, globalRuleUpdater, currentRuleConfig));
-        return new UpdateResponseHeader(sqlStatement);
+        result.add(new UpdateResponseHeader(sqlStatement));
+        return result;
     }
     
     private RuleConfiguration findCurrentRuleConfiguration(final Collection<RuleConfiguration> ruleConfigurations, final Class<? extends RuleConfiguration> ruleConfigClass) {

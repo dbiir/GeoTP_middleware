@@ -18,14 +18,16 @@
 package org.apache.shardingsphere.proxy.backend.handler.admin;
 
 import lombok.RequiredArgsConstructor;
+import org.apache.shardingsphere.proxy.backend.handler.ProxyBackendHandler;
+import org.apache.shardingsphere.proxy.backend.handler.admin.executor.DatabaseAdminExecutor;
 import org.apache.shardingsphere.proxy.backend.response.header.ResponseHeader;
 import org.apache.shardingsphere.proxy.backend.response.header.update.UpdateResponseHeader;
 import org.apache.shardingsphere.proxy.backend.session.ConnectionSession;
-import org.apache.shardingsphere.proxy.backend.handler.ProxyBackendHandler;
-import org.apache.shardingsphere.proxy.backend.handler.admin.executor.DatabaseAdminExecutor;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
 
 import java.sql.SQLException;
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  * Database admin update backend handler.
@@ -40,8 +42,10 @@ public final class DatabaseAdminUpdateBackendHandler implements ProxyBackendHand
     private final DatabaseAdminExecutor executor;
     
     @Override
-    public ResponseHeader execute() throws SQLException {
+    public List<ResponseHeader> execute() throws SQLException {
+        List<ResponseHeader> result = new LinkedList<>();
         executor.execute(connectionSession);
-        return new UpdateResponseHeader(sqlStatement);
+        result.add(new UpdateResponseHeader(sqlStatement));
+        return result;
     }
 }

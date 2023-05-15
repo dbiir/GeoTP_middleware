@@ -257,4 +257,21 @@ public final class SQLUtils {
         }
         return result;
     }
+
+    /**
+     * Split sql into multiple sqls
+     *
+     * @param sql Raw sql
+     * @return split input sql into list of sqls (based on semicolon)
+     */
+    public static List<String> splitMultiSQL(final String sql) {
+        List<String> result = new LinkedList<>();
+        String[] strings = sql.split(";");
+
+        for (String each: strings) {
+            result.add(trimComment(each));
+        }
+
+        return result;
+    }
 }

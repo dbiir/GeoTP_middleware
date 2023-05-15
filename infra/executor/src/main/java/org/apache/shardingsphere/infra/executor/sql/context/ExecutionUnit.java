@@ -34,4 +34,8 @@ public final class ExecutionUnit {
     private final String dataSourceName;
     
     private final SQLUnit sqlUnit;
+
+    public final void CombineExecutionUnit(ExecutionUnit other) {
+        sqlUnit.CombineSQLUnit(other.getSqlUnit());
+    }
 }

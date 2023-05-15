@@ -28,11 +28,7 @@ import org.apache.shardingsphere.proxy.backend.response.header.ResponseHeader;
 import org.apache.shardingsphere.proxy.backend.response.header.update.UpdateResponseHeader;
 import org.apache.shardingsphere.proxy.backend.session.ConnectionSession;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
-import org.apache.shardingsphere.sql.parser.sql.common.statement.tcl.ReleaseSavepointStatement;
-import org.apache.shardingsphere.sql.parser.sql.common.statement.tcl.RollbackStatement;
-import org.apache.shardingsphere.sql.parser.sql.common.statement.tcl.SavepointStatement;
-import org.apache.shardingsphere.sql.parser.sql.common.statement.tcl.SetAutoCommitStatement;
-import org.apache.shardingsphere.sql.parser.sql.common.statement.tcl.TCLStatement;
+import org.apache.shardingsphere.sql.parser.sql.common.statement.tcl.*;
 import org.apache.shardingsphere.sql.parser.sql.dialect.statement.mysql.tcl.MySQLSetAutoCommitStatement;
 import org.apache.shardingsphere.sql.parser.sql.dialect.statement.opengauss.tcl.OpenGaussCommitStatement;
 import org.apache.shardingsphere.sql.parser.sql.dialect.statement.opengauss.tcl.OpenGaussRollbackStatement;
@@ -42,6 +38,8 @@ import org.apache.shardingsphere.transaction.core.TransactionOperationType;
 
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  * Do transaction operation.
@@ -64,7 +62,8 @@ public final class TransactionBackendHandler implements ProxyBackendHandler {
     }
     
     @Override
-    public ResponseHeader execute() throws SQLException {
+    public List<ResponseHeader> execute() throws SQLException {
+        List<ResponseHeader> result = new LinkedList<ResponseHeader>();
         switch (operationType) {
             case BEGIN:
                 handleBegin();
@@ -81,7 +80,8 @@ public final class TransactionBackendHandler implements ProxyBackendHandler {
             case COMMIT:
                 SQLStatement sqlStatement = getSQLStatementByCommit();
                 backendTransactionManager.commit();
-                return new UpdateResponseHeader(sqlStatement);
+                result.add(new UpdateResponseHeader(sqlStatement));
+                return result;
             case ROLLBACK:
                 backendTransactionManager.rollback();
                 break;
@@ -91,7 +91,8 @@ public final class TransactionBackendHandler implements ProxyBackendHandler {
             default:
                 throw new SQLFeatureNotSupportedException(operationType.name());
         }
-        return new UpdateResponseHeader(tclStatement);
+        result.add(new UpdateResponseHeader(tclStatement));
+        return result;
     }
     
     private void handleBegin() throws SQLException {

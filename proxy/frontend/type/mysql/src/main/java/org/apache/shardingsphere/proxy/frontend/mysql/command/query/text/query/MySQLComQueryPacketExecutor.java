@@ -47,6 +47,8 @@ import org.apache.shardingsphere.sql.parser.sql.common.util.SQLUtils;
 
 import java.sql.SQLException;
 import java.util.Collection;
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  * COM_QUERY command packet executor for MySQL.
@@ -65,19 +67,32 @@ public final class MySQLComQueryPacketExecutor implements QueryCommandExecutor {
     public MySQLComQueryPacketExecutor(final MySQLComQueryPacket packet, final ConnectionSession connectionSession) throws SQLException {
         this.connectionSession = connectionSession;
         DatabaseType databaseType = TypedSPILoader.getService(DatabaseType.class, "MySQL");
-        SQLStatement sqlStatement = parseSql(packet.getSql(), databaseType);
-        proxyBackendHandler = areMultiStatements(connectionSession, sqlStatement, packet.getSql()) ? new MySQLMultiStatementsHandler(connectionSession, sqlStatement, packet.getSql())
-                : ProxyBackendHandlerFactory.newInstance(databaseType, packet.getSql(), sqlStatement, connectionSession, packet.getHintValueContext());
+        List<SQLStatement> sqlStatements = parseSql(packet.getSql(), databaseType);
+        if (sqlStatements.size() <= 1) {
+            proxyBackendHandler = ProxyBackendHandlerFactory.newInstance(databaseType, packet.getSql(), sqlStatements.get(0), connectionSession, packet.getHintValueContext());
+        } else {
+            proxyBackendHandler = new MySQLMultiStatementsHandler(connectionSession, sqlStatements, packet.getSql());
+        }
         characterSet = connectionSession.getAttributeMap().attr(MySQLConstants.MYSQL_CHARACTER_SET_ATTRIBUTE_KEY).get().getId();
     }
     
-    private SQLStatement parseSql(final String sql, final DatabaseType databaseType) {
+    private List<SQLStatement> parseSql(final String sql, final DatabaseType databaseType) {
+        List<SQLStatement> result = new LinkedList<>();
         if (SQLUtils.trimComment(sql).isEmpty()) {
-            return new EmptyStatement();
+            result.add(new EmptyStatement());
+            return result;
         }
-        MetaDataContexts metaDataContexts = ProxyContext.getInstance().getContextManager().getMetaDataContexts();
-        SQLParserRule sqlParserRule = metaDataContexts.getMetaData().getGlobalRuleMetaData().getSingleRule(SQLParserRule.class);
-        return sqlParserRule.getSQLParserEngine(databaseType.getType()).parse(sql, false);
+        List<String> singleSqls = SQLUtils.splitMultiSQL(sql);
+        if (singleSqls.size() < 1) {
+            result.add(new EmptyStatement());
+        } else {
+            MetaDataContexts metaDataContexts = ProxyContext.getInstance().getContextManager().getMetaDataContexts();
+            SQLParserRule sqlParserRule = metaDataContexts.getMetaData().getGlobalRuleMetaData().getSingleRule(SQLParserRule.class);
+            for (String each: singleSqls) {
+                result.add(sqlParserRule.getSQLParserEngine(databaseType.getType()).parse(each, false));
+            }
+        }
+        return result;
     }
     
     private boolean areMultiStatements(final ConnectionSession connectionSession, final SQLStatement sqlStatement, final String sql) {
@@ -89,12 +104,19 @@ public final class MySQLComQueryPacketExecutor implements QueryCommandExecutor {
     
     @Override
     public Collection<DatabasePacket<?>> execute() throws SQLException {
-        ResponseHeader responseHeader = proxyBackendHandler.execute();
-        if (responseHeader instanceof QueryResponseHeader) {
-            return processQuery((QueryResponseHeader) responseHeader);
+        // TODO: multi executor response header
+        Collection<DatabasePacket<?>> result = new LinkedList<>();
+        List<ResponseHeader> responseHeader = proxyBackendHandler.execute();
+
+        for (ResponseHeader each: responseHeader) {
+            if (each instanceof QueryResponseHeader) {
+                result.addAll(processQuery((QueryResponseHeader) each)) ;
+            } else if (each instanceof UpdateResponseHeader) {
+                responseType = ResponseType.UPDATE;
+                result.addAll(processUpdate((UpdateResponseHeader) each));
+            }
         }
-        responseType = ResponseType.UPDATE;
-        return processUpdate((UpdateResponseHeader) responseHeader);
+        return result;
     }
     
     private Collection<DatabasePacket<?>> processQuery(final QueryResponseHeader queryResponseHeader) {

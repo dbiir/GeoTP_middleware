@@ -80,8 +80,9 @@ public final class MySQLComStmtExecuteExecutor implements QueryCommandExecutor {
         QueryContext queryContext = new QueryContext(sqlStatementContext, preparedStatement.getSql(), params, new HintValueContext(), true);
         connectionSession.setQueryContext(queryContext);
         proxyBackendHandler = ProxyBackendHandlerFactory.newInstance(TypedSPILoader.getService(DatabaseType.class, "MySQL"), queryContext, connectionSession, true);
-        ResponseHeader responseHeader = proxyBackendHandler.execute();
-        return responseHeader instanceof QueryResponseHeader ? processQuery((QueryResponseHeader) responseHeader) : processUpdate((UpdateResponseHeader) responseHeader);
+        // TODO: ZQY
+        List<ResponseHeader> responseHeader = proxyBackendHandler.execute();
+        return responseHeader.get(0) instanceof QueryResponseHeader ? processQuery((QueryResponseHeader) responseHeader.get(0)) : processUpdate((UpdateResponseHeader) responseHeader.get(0));
     }
     
     private MySQLServerPreparedStatement updateAndGetPreparedStatement() {

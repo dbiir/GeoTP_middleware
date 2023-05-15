@@ -33,6 +33,7 @@ import java.sql.SQLException;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -48,10 +49,12 @@ public abstract class SQLRULBackendHandler<E extends RULStatement> extends RULBa
     private MergedResult mergedResult;
     
     @Override
-    public final ResponseHeader execute() throws SQLException {
+    public final List<ResponseHeader> execute() throws SQLException {
+        List<ResponseHeader> result = new LinkedList<ResponseHeader>();
         queryHeaders = createQueryHeader();
         mergedResult = createMergedResult();
-        return new QueryResponseHeader(queryHeaders);
+        result.add(new QueryResponseHeader(queryHeaders));
+        return result;
     }
     
     private List<QueryHeader> createQueryHeader() {

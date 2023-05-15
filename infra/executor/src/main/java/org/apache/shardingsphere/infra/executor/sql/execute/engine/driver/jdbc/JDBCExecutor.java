@@ -64,6 +64,7 @@ public final class JDBCExecutor {
     public <T> List<T> execute(final ExecutionGroupContext<JDBCExecutionUnit> executionGroupContext,
                                final JDBCExecutorCallback<T> firstCallback, final JDBCExecutorCallback<T> callback) throws SQLException {
         try {
+            // ZQY: isInTransaction 用于判断该语句是否在一个事务中，事务中的语句只能串行执行，否则可以并行执行 ？？？
             return executorEngine.execute(executionGroupContext, firstCallback, callback, connectionContext.getTransactionContext().isInTransaction());
         } catch (final SQLException ex) {
             SQLExecutorExceptionHandler.handleException(ex);

@@ -196,7 +196,7 @@ public final class DatabaseConnector implements DatabaseBackendHandler {
      * @throws SQLException SQL exception
      */
     @Override
-    public ResponseHeader execute() throws SQLException {
+    public List<ResponseHeader> execute() throws SQLException {
         MetaDataContexts metaDataContexts = ProxyContext.getInstance().getContextManager().getMetaDataContexts();
         SQLFederationDeciderContext deciderContext = new SQLFederationDeciderEngine(
                 database.getRuleMetaData().getRules(), metaDataContexts.getMetaData().getProps()).decide(queryContext, metaDataContexts.getMetaData().getGlobalRuleMetaData(), database);
@@ -235,12 +235,12 @@ public final class DatabaseConnector implements DatabaseBackendHandler {
         return sqlStatement instanceof DMLStatement && !(sqlStatement instanceof SelectStatement);
     }
     
-    private ResponseHeader doExecuteWithImplicitCommitTransaction(final Collection<ExecutionContext> executionContexts) throws SQLException {
-        ResponseHeader result;
+    private List<ResponseHeader> doExecuteWithImplicitCommitTransaction(final Collection<ExecutionContext> executionContexts) throws SQLException {
+        List<ResponseHeader> result;
         BackendTransactionManager transactionManager = new BackendTransactionManager(backendConnection);
         try {
             transactionManager.begin();
-            result = doExecute(executionContexts);
+            result = new LinkedList<>(doExecute(executionContexts));
             transactionManager.commit();
             // CHECKSTYLE:OFF
         } catch (final Exception ex) {
@@ -253,12 +253,12 @@ public final class DatabaseConnector implements DatabaseBackendHandler {
         return result;
     }
     
-    private ResponseHeader doExecute(final Collection<ExecutionContext> executionContexts) throws SQLException {
-        ResponseHeader result = null;
+    private List<ResponseHeader> doExecute(final Collection<ExecutionContext> executionContexts) throws SQLException {
+        List<ResponseHeader> result = new LinkedList<>();
         for (ExecutionContext each : executionContexts) {
             ResponseHeader responseHeader = doExecute(each);
-            if (null == result) {
-                result = responseHeader;
+            if (result.size() == 0) {
+                result.add(responseHeader);
             }
         }
         return result;
@@ -306,7 +306,8 @@ public final class DatabaseConnector implements DatabaseBackendHandler {
                 metaData.getMetaData().getDatabase(backendConnection.getConnectionSession().getDatabaseName()).getResourceMetaData().getStorageTypes());
     }
     
-    private ResponseHeader processExecuteFederation(final ResultSet resultSet, final MetaDataContexts metaDataContexts) throws SQLException {
+    private List<ResponseHeader> processExecuteFederation(final ResultSet resultSet, final MetaDataContexts metaDataContexts) throws SQLException {
+        List<ResponseHeader> result = new LinkedList<>();
         int columnCount = resultSet.getMetaData().getColumnCount();
         queryHeaders = new ArrayList<>(columnCount);
         ShardingSphereDatabase database = metaDataContexts.getMetaData().getDatabase(backendConnection.getConnectionSession().getDatabaseName());
@@ -315,7 +316,8 @@ public final class DatabaseConnector implements DatabaseBackendHandler {
             queryHeaders.add(queryHeaderBuilderEngine.build(new JDBCQueryResultMetaData(resultSet.getMetaData()), database, columnIndex));
         }
         mergedResult = new IteratorStreamMergedResult(Collections.singletonList(new JDBCStreamQueryResult(resultSet)));
-        return new QueryResponseHeader(queryHeaders);
+        result.add(new QueryResponseHeader(queryHeaders));
+        return result;
     }
     
     private void prepareCursorStatementContext(final CursorAvailable statementContext, final ConnectionSession connectionSession) {

@@ -18,14 +18,16 @@
 package org.apache.shardingsphere.proxy.backend.handler.database;
 
 import lombok.RequiredArgsConstructor;
-import org.apache.shardingsphere.proxy.backend.context.ProxyContext;
 import org.apache.shardingsphere.dialect.exception.syntax.database.DatabaseCreateExistsException;
+import org.apache.shardingsphere.proxy.backend.context.ProxyContext;
+import org.apache.shardingsphere.proxy.backend.handler.ProxyBackendHandler;
 import org.apache.shardingsphere.proxy.backend.response.header.ResponseHeader;
 import org.apache.shardingsphere.proxy.backend.response.header.update.UpdateResponseHeader;
-import org.apache.shardingsphere.proxy.backend.handler.ProxyBackendHandler;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.ddl.CreateDatabaseStatement;
 
 import java.sql.SQLException;
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  * Create database backend handler.
@@ -36,10 +38,12 @@ public final class CreateDatabaseBackendHandler implements ProxyBackendHandler {
     private final CreateDatabaseStatement sqlStatement;
     
     @Override
-    public ResponseHeader execute() throws SQLException {
+    public List<ResponseHeader> execute() throws SQLException {
         check(sqlStatement);
+        List<ResponseHeader> result = new LinkedList<>();
         ProxyContext.getInstance().getContextManager().getInstanceContext().getModeContextManager().createDatabase(sqlStatement.getDatabaseName());
-        return new UpdateResponseHeader(sqlStatement);
+        result.add(new UpdateResponseHeader(sqlStatement));
+        return result;
     }
     
     private void check(final CreateDatabaseStatement sqlStatement) {

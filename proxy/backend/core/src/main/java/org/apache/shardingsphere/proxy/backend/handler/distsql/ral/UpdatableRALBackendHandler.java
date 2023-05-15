@@ -27,6 +27,8 @@ import org.apache.shardingsphere.proxy.backend.response.header.update.UpdateResp
 import org.apache.shardingsphere.proxy.backend.session.ConnectionSession;
 
 import java.sql.SQLException;
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  * Updatable RAL backend handler.
@@ -42,13 +44,15 @@ public final class UpdatableRALBackendHandler<T extends UpdatableRALStatement> i
     
     @SuppressWarnings("unchecked")
     @Override
-    public ResponseHeader execute() throws SQLException {
+    public List<ResponseHeader> execute() throws SQLException {
+        List<ResponseHeader> result = new LinkedList<ResponseHeader>();
         RALUpdater<T> updater = TypedSPILoader.getService(RALUpdater.class, sqlStatement.getClass().getName());
         if (updater instanceof ConnectionSessionRequiredRALUpdater) {
             ((ConnectionSessionRequiredRALUpdater<T>) updater).executeUpdate(connectionSession, (T) sqlStatement);
         } else {
             updater.executeUpdate(connectionSession.getDatabaseName(), (T) sqlStatement);
         }
-        return new UpdateResponseHeader(sqlStatement);
+        result.add(new UpdateResponseHeader(sqlStatement));
+        return result;
     }
 }

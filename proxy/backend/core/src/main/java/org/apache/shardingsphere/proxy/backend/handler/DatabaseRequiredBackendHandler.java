@@ -31,6 +31,7 @@ import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.available.FromDatabaseAvailable;
 
 import java.sql.SQLException;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -47,13 +48,13 @@ public abstract class DatabaseRequiredBackendHandler<T extends SQLStatement> imp
     private final ConnectionSession connectionSession;
     
     @Override
-    public final ResponseHeader execute() throws SQLException {
+    public final List<ResponseHeader> execute() throws SQLException {
         String databaseName = getDatabaseName(connectionSession, sqlStatement);
         checkDatabaseName(databaseName);
         return execute(databaseName, sqlStatement);
     }
     
-    protected abstract ResponseHeader execute(String databaseName, T sqlStatement);
+    protected abstract List<ResponseHeader> execute(String databaseName, T sqlStatement);
     
     private String getDatabaseName(final ConnectionSession connectionSession, final T sqlStatement) {
         Optional<DatabaseSegment> databaseSegment = sqlStatement instanceof FromDatabaseAvailable ? ((FromDatabaseAvailable) sqlStatement).getDatabase() : Optional.empty();

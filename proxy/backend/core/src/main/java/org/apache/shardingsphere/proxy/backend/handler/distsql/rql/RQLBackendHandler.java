@@ -41,10 +41,7 @@ import org.apache.shardingsphere.sql.parser.sql.common.statement.available.FromD
 
 import java.sql.SQLException;
 import java.sql.Types;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -66,13 +63,15 @@ public final class RQLBackendHandler<T extends RQLStatement> implements DistSQLB
     
     @SuppressWarnings({"rawtypes", "unchecked"})
     @Override
-    public ResponseHeader execute() throws SQLException {
+    public List<ResponseHeader> execute() throws SQLException {
+        List<ResponseHeader> result = new LinkedList<>();
         String databaseName = getDatabaseName(connectionSession, sqlStatement);
         checkDatabaseName(databaseName);
         RQLExecutor executor = TypedSPILoader.getService(RQLExecutor.class, sqlStatement.getClass().getName());
         queryHeaders = createQueryHeader(executor.getColumnNames());
         mergedResult = createMergedResult(executor.getRows(ProxyContext.getInstance().getDatabase(databaseName), sqlStatement));
-        return new QueryResponseHeader(queryHeaders);
+        result.add(new QueryResponseHeader(queryHeaders));
+        return result;
     }
     
     private String getDatabaseName(final ConnectionSession connectionSession, final T sqlStatement) {

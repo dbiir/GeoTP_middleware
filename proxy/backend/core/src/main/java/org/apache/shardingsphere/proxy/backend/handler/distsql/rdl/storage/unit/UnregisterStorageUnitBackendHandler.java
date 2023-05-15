@@ -38,11 +38,7 @@ import org.apache.shardingsphere.single.rule.SingleRule;
 
 import javax.sql.DataSource;
 import java.sql.SQLException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -56,15 +52,17 @@ public final class UnregisterStorageUnitBackendHandler extends StorageUnitDefini
     }
     
     @Override
-    public ResponseHeader execute(final String databaseName, final UnregisterStorageUnitStatement sqlStatement) {
+    public List<ResponseHeader> execute(final String databaseName, final UnregisterStorageUnitStatement sqlStatement) {
         checkSQLStatement(databaseName, sqlStatement);
+        List<ResponseHeader> result = new LinkedList<ResponseHeader>();
         try {
             ProxyContext.getInstance().getContextManager().getInstanceContext().getModeContextManager().unregisterStorageUnits(databaseName, sqlStatement.getStorageUnitNames());
         } catch (final SQLException | ShardingSphereServerException ex) {
             log.error("Unregister storage unit failed", ex);
             throw new InvalidStorageUnitsException(Collections.singleton(ex.getMessage()));
         }
-        return new UpdateResponseHeader(sqlStatement);
+        result.add(new UpdateResponseHeader(sqlStatement));
+        return result;
     }
     
     @Override

@@ -32,6 +32,9 @@ import org.apache.shardingsphere.proxy.backend.response.header.update.UpdateResp
 import org.apache.shardingsphere.proxy.backend.session.ConnectionSession;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.ddl.DropDatabaseStatement;
 
+import java.util.LinkedList;
+import java.util.List;
+
 /**
  * Drop database backend handler.
  */
@@ -43,13 +46,15 @@ public final class DropDatabaseBackendHandler implements ProxyBackendHandler {
     private final ConnectionSession connectionSession;
     
     @Override
-    public ResponseHeader execute() {
+    public List<ResponseHeader> execute() {
         check(sqlStatement, connectionSession.getGrantee());
+        List<ResponseHeader> result = new LinkedList<ResponseHeader>();
         if (isDropCurrentDatabase(sqlStatement.getDatabaseName())) {
             connectionSession.setCurrentDatabase(null);
         }
         ProxyContext.getInstance().getContextManager().getInstanceContext().getModeContextManager().dropDatabase(sqlStatement.getDatabaseName());
-        return new UpdateResponseHeader(sqlStatement);
+        result.add(new UpdateResponseHeader(sqlStatement));
+        return result;
     }
     
     private void check(final DropDatabaseStatement sqlStatement, final Grantee grantee) {

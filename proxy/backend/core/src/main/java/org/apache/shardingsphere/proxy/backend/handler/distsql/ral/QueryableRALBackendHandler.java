@@ -42,10 +42,7 @@ import org.apache.shardingsphere.sql.parser.sql.common.statement.available.FromD
 
 import java.sql.SQLException;
 import java.sql.Types;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -71,11 +68,13 @@ public final class QueryableRALBackendHandler<T extends QueryableRALStatement> i
     
     @SuppressWarnings("unchecked")
     @Override
-    public ResponseHeader execute() {
+    public List<ResponseHeader> execute() {
+        List<ResponseHeader> result = new LinkedList<ResponseHeader>();
         QueryableRALExecutor<T> executor = TypedSPILoader.getService(QueryableRALExecutor.class, sqlStatement.getClass().getName());
         mergedResult = getMergedResult(executor);
         queryHeaders = createQueryHeader(executor.getColumnNames());
-        return new QueryResponseHeader(queryHeaders);
+        result.add(new QueryResponseHeader(queryHeaders));
+        return result;
     }
     
     private MergedResult getMergedResult(final QueryableRALExecutor<T> executor) {

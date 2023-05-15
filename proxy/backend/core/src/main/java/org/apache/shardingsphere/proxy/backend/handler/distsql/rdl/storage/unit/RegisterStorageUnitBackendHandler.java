@@ -35,11 +35,7 @@ import org.apache.shardingsphere.proxy.backend.response.header.update.UpdateResp
 import org.apache.shardingsphere.proxy.backend.session.ConnectionSession;
 
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -59,8 +55,9 @@ public final class RegisterStorageUnitBackendHandler extends StorageUnitDefiniti
     }
     
     @Override
-    public ResponseHeader execute(final String databaseName, final RegisterStorageUnitStatement sqlStatement) {
+    public List<ResponseHeader> execute(final String databaseName, final RegisterStorageUnitStatement sqlStatement) {
         checkSQLStatement(databaseName, sqlStatement);
+        List<ResponseHeader> result = new LinkedList<ResponseHeader>();
         Map<String, DataSourceProperties> dataSourcePropsMap = DataSourceSegmentsConverter.convert(databaseType, sqlStatement.getStorageUnits());
         if (sqlStatement.isIfNotExists()) {
             Collection<String> currentStorageUnits = getCurrentStorageUnitNames(databaseName);
@@ -69,7 +66,8 @@ public final class RegisterStorageUnitBackendHandler extends StorageUnitDefiniti
             dataSourcePropsMap.keySet().removeIf(logicalDataSourceNames::contains);
         }
         if (dataSourcePropsMap.isEmpty()) {
-            return new UpdateResponseHeader(sqlStatement);
+            result.add(new UpdateResponseHeader(sqlStatement));
+            return result;
         }
         validateHandler.validate(dataSourcePropsMap);
         try {
@@ -78,7 +76,8 @@ public final class RegisterStorageUnitBackendHandler extends StorageUnitDefiniti
             log.error("Register storage unit failed", ex);
             throw new InvalidStorageUnitsException(Collections.singleton(ex.getMessage()));
         }
-        return new UpdateResponseHeader(sqlStatement);
+        result.add(new UpdateResponseHeader(sqlStatement));
+        return result;
     }
     
     @Override

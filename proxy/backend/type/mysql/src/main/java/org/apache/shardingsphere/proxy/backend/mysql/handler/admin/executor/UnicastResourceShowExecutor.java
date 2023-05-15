@@ -69,7 +69,7 @@ public final class UnicastResourceShowExecutor implements DatabaseAdminQueryExec
     
     private DatabaseConnector databaseConnector;
     
-    private ResponseHeader responseHeader;
+    private List<ResponseHeader> responseHeader;
     
     @Override
     public void execute(final ConnectionSession connectionSession) throws SQLException {
@@ -102,7 +102,8 @@ public final class UnicastResourceShowExecutor implements DatabaseAdminQueryExec
     
     @Override
     public QueryResultMetaData getQueryResultMetaData() {
-        List<RawQueryResultColumnMetaData> columns = ((QueryResponseHeader) responseHeader).getQueryHeaders().stream().map(QueryHeader::getColumnLabel)
+        // TODO: get query result meta data by index(command id)
+        List<RawQueryResultColumnMetaData> columns = ((QueryResponseHeader) responseHeader.get(0)).getQueryHeaders().stream().map(QueryHeader::getColumnLabel)
                 .map(each -> new RawQueryResultColumnMetaData("", each, each, Types.VARCHAR, "VARCHAR", 100, 0))
                 .collect(Collectors.toList());
         return new RawQueryResultMetaData(columns);

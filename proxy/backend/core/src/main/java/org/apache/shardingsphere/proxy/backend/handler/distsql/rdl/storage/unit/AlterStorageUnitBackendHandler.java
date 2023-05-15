@@ -41,11 +41,8 @@ import org.apache.shardingsphere.proxy.backend.session.ConnectionSession;
 
 import javax.sql.DataSource;
 import java.sql.SQLException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -65,8 +62,9 @@ public final class AlterStorageUnitBackendHandler extends StorageUnitDefinitionB
     }
     
     @Override
-    public ResponseHeader execute(final String databaseName, final AlterStorageUnitStatement sqlStatement) {
+    public List<ResponseHeader> execute(final String databaseName, final AlterStorageUnitStatement sqlStatement) {
         checkSQLStatement(databaseName, sqlStatement);
+        List<ResponseHeader> result = new LinkedList<ResponseHeader>();
         Map<String, DataSourceProperties> dataSourcePropsMap = DataSourceSegmentsConverter.convert(databaseType, sqlStatement.getStorageUnits());
         validateHandler.validate(dataSourcePropsMap);
         try {
@@ -75,7 +73,8 @@ public final class AlterStorageUnitBackendHandler extends StorageUnitDefinitionB
             log.error("Alter storage unit failed", ex);
             throw new InvalidStorageUnitsException(Collections.singleton(ex.getMessage()));
         }
-        return new UpdateResponseHeader(sqlStatement);
+        result.add(new UpdateResponseHeader(sqlStatement));
+        return result;
     }
     
     @Override

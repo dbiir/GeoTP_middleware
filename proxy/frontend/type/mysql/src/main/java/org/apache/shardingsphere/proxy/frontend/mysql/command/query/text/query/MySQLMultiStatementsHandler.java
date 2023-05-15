@@ -54,18 +54,12 @@ import org.apache.shardingsphere.proxy.backend.response.header.update.UpdateResp
 import org.apache.shardingsphere.proxy.backend.session.ConnectionSession;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.dml.UpdateStatement;
+import org.apache.shardingsphere.sql.parser.sql.common.util.SQLUtils;
 
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.regex.Pattern;
 
 /**
@@ -84,11 +78,15 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
     private final ConnectionSession connectionSession;
     
     private final SQLStatement sqlStatementSample;
+
+    private final List<SQLStatement> sqlStatements;
     
     private final MetaDataContexts metaDataContexts = ProxyContext.getInstance().getContextManager().getMetaDataContexts();
     
     private final Map<String, List<ExecutionUnit>> dataSourcesToExecutionUnits = new HashMap<>();
-    
+
+    private final Map<String, List<Integer>> dataSourcesToCommandId = new HashMap<>();
+
     private ExecutionContext anyExecutionContext;
     
     public MySQLMultiStatementsHandler(final ConnectionSession connectionSession, final SQLStatement sqlStatementSample, final String sql) {
@@ -107,6 +105,40 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
             for (ExecutionUnit eachExecutionUnit : executionContext.getExecutionUnits()) {
                 dataSourcesToExecutionUnits.computeIfAbsent(eachExecutionUnit.getDataSourceName(), unused -> new LinkedList<>()).add(eachExecutionUnit);
             }
+        }
+        this.sqlStatements = null;
+    }
+
+    public MySQLMultiStatementsHandler(final ConnectionSession connectionSession, final List<SQLStatement> sqlStatements, final String sql) {
+        jdbcExecutor = new JDBCExecutor(BackendExecutorContext.getInstance().getExecutorEngine(), connectionSession.getConnectionContext());
+        connectionSession.getBackendConnection().handleAutoCommit();
+        this.connectionSession = connectionSession;
+        this.sqlStatements = sqlStatements;
+        this.sqlStatementSample = null;
+//        Pattern pattern = sqlStatementSample instanceof UpdateStatement ? MULTI_UPDATE_STATEMENTS : MULTI_DELETE_STATEMENTS;
+        List<String> sqls = SQLUtils.splitMultiSQL(sql);
+
+        assert (sqlStatements.size() == sqls.size());
+
+        Map<String, List<ExecutionUnit>> groupExecuteUnits = new HashMap<>();
+        for (int i = 0; i < sqlStatements.size(); i++) {
+//            SQLStatement eachSQLStatement = sqlParserEngine.parse(each, false);
+            ExecutionContext executionContext = createExecutionContext(createQueryContext(sqls.get(i), sqlStatements.get(i)));
+            if (null == anyExecutionContext) {
+                anyExecutionContext = executionContext;
+            }
+            for (ExecutionUnit eachExecutionUnit : executionContext.getExecutionUnits()) {
+                groupExecuteUnits.computeIfAbsent(eachExecutionUnit.getDataSourceName(), unused -> new LinkedList<>()).add(eachExecutionUnit);
+                dataSourcesToCommandId.computeIfAbsent(eachExecutionUnit.getDataSourceName(), unused -> new LinkedList<>()).add(i);
+            }
+        }
+
+        for (List<ExecutionUnit> each: groupExecuteUnits.values()) {
+            ExecutionUnit first = each.get(0);
+            for (int i = 1; i < each.size(); i++) {
+                first.CombineExecutionUnit(each.get(i));
+            }
+            dataSourcesToExecutionUnits.computeIfAbsent(first.getDataSourceName(), unused -> new LinkedList<>()).add(first);
         }
     }
     
@@ -135,7 +167,7 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
     }
     
     @Override
-    public ResponseHeader execute() throws SQLException {
+    public List<ResponseHeader> execute() throws SQLException {
         Collection<ShardingSphereRule> rules = metaDataContexts.getMetaData().getDatabase(connectionSession.getDatabaseName()).getRuleMetaData().getRules();
         DriverExecutionPrepareEngine<JDBCExecutionUnit, Connection> prepareEngine = new DriverExecutionPrepareEngine<>(JDBCDriverType.STATEMENT, metaDataContexts.getMetaData().getProps()
                 .<Integer>getValue(ConfigurationPropertyKey.MAX_CONNECTIONS_SIZE_PER_QUERY), connectionSession.getBackendConnection(),
@@ -165,22 +197,25 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
             statement.addBatch(eachExecutionUnit.getSqlUnit().getSql());
         }
     }
-    
-    private UpdateResponseHeader executeBatchedStatements(final ExecutionGroupContext<JDBCExecutionUnit> executionGroupContext) throws SQLException {
+
+    private List<ResponseHeader> executeBatchedStatements(final ExecutionGroupContext<JDBCExecutionUnit> executionGroupContext) throws SQLException {
         boolean isExceptionThrown = SQLExecutorExceptionHandler.isExceptionThrown();
+        List<ResponseHeader> result = new LinkedList<>();
         Map<String, DatabaseType> storageTypes = metaDataContexts.getMetaData().getDatabase(connectionSession.getDatabaseName()).getResourceMetaData().getStorageTypes();
         JDBCExecutorCallback<int[]> callback = new BatchedJDBCExecutorCallback(storageTypes, sqlStatementSample, isExceptionThrown);
-        List<int[]> executeResults = jdbcExecutor.execute(executionGroupContext, callback);
-        int updated = 0;
-        for (int[] eachResult : executeResults) {
-            for (int each : eachResult) {
-                updated += each;
-            }
-        }
-        // TODO Each logic SQL should correspond to an OK Packet.
-        return new UpdateResponseHeader(sqlStatementSample, Collections.singletonList(new UpdateResult(updated, 0L)));
+        List<?> executeResults = jdbcExecutor.execute(executionGroupContext, callback);
+//        int updated = 0;
+//        for (int[] eachResult : executeResults) {
+//            for (int each : eachResult) {
+//                updated += each;
+//            }
+//        }
+
+        result.add(new UpdateResponseHeader(sqlStatementSample, Collections.singletonList(new UpdateResult(0, 0L))));
+
+        return result;
     }
-    
+
     private static class BatchedJDBCExecutorCallback extends JDBCExecutorCallback<int[]> {
         
         BatchedJDBCExecutorCallback(final Map<String, DatabaseType> storageTypes, final SQLStatement sqlStatement, final boolean isExceptionThrown) {

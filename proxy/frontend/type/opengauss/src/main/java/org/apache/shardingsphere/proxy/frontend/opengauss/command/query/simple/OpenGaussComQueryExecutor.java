@@ -74,12 +74,13 @@ public final class OpenGaussComQueryExecutor implements QueryCommandExecutor {
     
     @Override
     public Collection<DatabasePacket<?>> execute() throws SQLException {
-        ResponseHeader responseHeader = proxyBackendHandler.execute();
-        if (responseHeader instanceof QueryResponseHeader) {
-            return Collections.singleton(createRowDescriptionPacket((QueryResponseHeader) responseHeader));
+        // TODO: ZQY
+        List<ResponseHeader> responseHeader = proxyBackendHandler.execute();
+        if (responseHeader.get(0) instanceof QueryResponseHeader) {
+            return Collections.singleton(createRowDescriptionPacket((QueryResponseHeader) responseHeader.get(0)));
         }
         responseType = ResponseType.UPDATE;
-        return createUpdatePacket((UpdateResponseHeader) responseHeader);
+        return createUpdatePacket((UpdateResponseHeader) responseHeader.get(0));
     }
     
     private PostgreSQLRowDescriptionPacket createRowDescriptionPacket(final QueryResponseHeader queryResponseHeader) {

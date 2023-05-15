@@ -35,13 +35,27 @@ import java.util.List;
 @ToString
 public final class SQLUnit {
     
-    private final String sql;
+    private String sql;
     
-    private final List<Object> parameters;
+    private List<Object> parameters;
     
-    private final List<RouteMapper> tableRouteMappers;
+    private List<RouteMapper> tableRouteMappers;
     
-    public SQLUnit(final String sql, final List<Object> params) {
-        this(sql, params, Collections.emptyList());
+    public SQLUnit(String sql, List<Object> params) {
+        this.sql = sql;
+        this.parameters = params;
+        this.tableRouteMappers = Collections.emptyList();
+    }
+
+    public SQLUnit(String sql, List<Object> params, List<RouteMapper> routers) {
+        this.sql = sql;
+        this.parameters = params;
+        this.tableRouteMappers = routers;
+    }
+
+    public void CombineSQLUnit(SQLUnit other) {
+        sql = sql + other.getSql();
+        parameters.addAll(other.getParameters());
+        tableRouteMappers.addAll(other.getTableRouteMappers());
     }
 }

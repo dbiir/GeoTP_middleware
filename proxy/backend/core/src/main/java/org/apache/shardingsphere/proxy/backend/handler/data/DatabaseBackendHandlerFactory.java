@@ -23,6 +23,7 @@ import org.apache.shardingsphere.infra.binder.QueryContext;
 import org.apache.shardingsphere.infra.binder.statement.SQLStatementContext;
 import org.apache.shardingsphere.proxy.backend.connector.DatabaseConnectorFactory;
 import org.apache.shardingsphere.proxy.backend.handler.data.impl.UnicastDatabaseBackendHandler;
+import org.apache.shardingsphere.proxy.backend.response.header.ResponseHeader;
 import org.apache.shardingsphere.proxy.backend.response.header.update.UpdateResponseHeader;
 import org.apache.shardingsphere.proxy.backend.session.ConnectionSession;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
@@ -30,6 +31,9 @@ import org.apache.shardingsphere.sql.parser.sql.common.statement.dal.DALStatemen
 import org.apache.shardingsphere.sql.parser.sql.common.statement.dal.SetStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.dml.DoStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.dml.SelectStatement;
+
+import java.util.List;
+import java.util.LinkedList;
 
 /**
  * Database backend handler factory.
@@ -52,7 +56,9 @@ public final class DatabaseBackendHandlerFactory {
             return new UnicastDatabaseBackendHandler(queryContext, connectionSession);
         }
         if (sqlStatement instanceof SetStatement && null == connectionSession.getDatabaseName()) {
-            return () -> new UpdateResponseHeader(sqlStatement);
+            List<ResponseHeader> result = new LinkedList<ResponseHeader>();
+            result.add(new UpdateResponseHeader(sqlStatement));
+            return () -> result;
         }
         if (sqlStatement instanceof DALStatement || sqlStatement instanceof SelectStatement && null == ((SelectStatement) sqlStatement).getFrom()) {
             return new UnicastDatabaseBackendHandler(queryContext, connectionSession);

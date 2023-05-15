@@ -21,8 +21,8 @@ import lombok.RequiredArgsConstructor;
 import org.apache.shardingsphere.infra.binder.QueryContext;
 import org.apache.shardingsphere.infra.binder.statement.SQLStatementContext;
 import org.apache.shardingsphere.infra.util.exception.ShardingSpherePreconditions;
-import org.apache.shardingsphere.proxy.backend.connector.DatabaseConnectorFactory;
 import org.apache.shardingsphere.proxy.backend.connector.DatabaseConnector;
+import org.apache.shardingsphere.proxy.backend.connector.DatabaseConnectorFactory;
 import org.apache.shardingsphere.proxy.backend.handler.ProxyBackendHandler;
 import org.apache.shardingsphere.proxy.backend.response.data.QueryResponseRow;
 import org.apache.shardingsphere.proxy.backend.response.header.ResponseHeader;
@@ -34,6 +34,7 @@ import org.apache.shardingsphere.transaction.xa.jta.exception.XATransactionNeste
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * XA transaction handler.
@@ -64,9 +65,9 @@ public final class TransactionXAHandler implements ProxyBackendHandler {
     public QueryResponseRow getRowData() throws SQLException {
         return this.tclStatement.getOp().equals("RECOVER") ? this.backendHandler.getRowData() : new QueryResponseRow(Collections.emptyList());
     }
-    
+
     @Override
-    public ResponseHeader execute() throws SQLException {
+    public List<ResponseHeader> execute() throws SQLException {
         switch (tclStatement.getOp()) {
             case "START":
             case "BEGIN":
@@ -75,7 +76,7 @@ public final class TransactionXAHandler implements ProxyBackendHandler {
                  * exclusive
                  */
                 ShardingSpherePreconditions.checkState(!connectionSession.getTransactionStatus().isInTransaction(), XATransactionNestedBeginException::new);
-                ResponseHeader header = backendHandler.execute();
+                List<ResponseHeader> header = backendHandler.execute();
                 connectionSession.getConnectionContext().getTransactionContext().setInTransaction(true);
                 return header;
             case "END":

@@ -76,7 +76,7 @@ public final class Portal {
     
     private final BackendConnection backendConnection;
     
-    private ResponseHeader responseHeader;
+    private List<ResponseHeader> responseHeader;
     
     public Portal(final String name, final PostgreSQLServerPreparedStatement preparedStatement, final List<Object> params, final List<PostgreSQLValueFormat> resultFormats,
                   final BackendConnection backendConnection) throws SQLException {
@@ -111,10 +111,11 @@ public final class Portal {
      * @throws IllegalStateException illegal state exception
      */
     public PostgreSQLPacket describe() {
-        if (responseHeader instanceof QueryResponseHeader) {
-            return createRowDescriptionPacket((QueryResponseHeader) responseHeader);
+        // TODO: ZQY
+        if (responseHeader.get(0) instanceof QueryResponseHeader) {
+            return createRowDescriptionPacket((QueryResponseHeader) responseHeader.get(0));
         }
-        if (responseHeader instanceof UpdateResponseHeader) {
+        if (responseHeader.get(0) instanceof UpdateResponseHeader) {
             return PostgreSQLNoDataPacket.getInstance();
         }
         throw new IllegalStateException(String.format("Can not describe portal `%s` before bind", name));
@@ -147,7 +148,7 @@ public final class Portal {
         for (int i = 0; i < fetchSize && hasNext(); i++) {
             result.add(nextPacket());
         }
-        if (responseHeader instanceof UpdateResponseHeader && sqlStatement instanceof SetStatement) {
+        if (responseHeader.get(0) instanceof UpdateResponseHeader && sqlStatement instanceof SetStatement) {
             result.addAll(createParameterStatusResponse((SetStatement) sqlStatement));
             return result;
         }
@@ -208,7 +209,7 @@ public final class Portal {
     }
     
     private long getUpdateCount() {
-        return responseHeader instanceof UpdateResponseHeader ? ((UpdateResponseHeader) responseHeader).getUpdateCount() : 0;
+        return responseHeader.get(0) instanceof UpdateResponseHeader ? ((UpdateResponseHeader) responseHeader.get(0)).getUpdateCount() : 0;
     }
     
     /**

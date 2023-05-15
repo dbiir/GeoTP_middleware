@@ -34,6 +34,8 @@ import org.apache.shardingsphere.proxy.backend.session.ConnectionSession;
 
 import java.sql.SQLException;
 import java.util.Collection;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -52,7 +54,8 @@ public final class UnicastDatabaseBackendHandler implements DatabaseBackendHandl
     private DatabaseConnector databaseConnector;
     
     @Override
-    public ResponseHeader execute() throws SQLException {
+    public List<ResponseHeader> execute() throws SQLException {
+        List<ResponseHeader> result = new LinkedList<>();
         String originDatabase = connectionSession.getDefaultDatabaseName();
         String databaseName = null == originDatabase ? getFirstDatabaseName() : originDatabase;
         ShardingSpherePreconditions.checkState(ProxyContext.getInstance().getDatabase(databaseName).containsDataSource(), () -> new StorageUnitNotExistedException(databaseName));
