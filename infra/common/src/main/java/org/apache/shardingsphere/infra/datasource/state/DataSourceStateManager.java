@@ -81,7 +81,8 @@ public final class DataSourceStateManager {
     }
     
     private void checkState(final String databaseName, final String actualDataSourceName, final DataSource dataSource) {
-        try (Connection ignored = dataSource.getConnection()) {
+        try (Connection conn = dataSource.getConnection()) {
+            conn.setAutoCommit(false);
             dataSourceStates.put(getCacheKey(databaseName, actualDataSourceName), DataSourceState.ENABLED);
         } catch (final SQLException ex) {
             ShardingSpherePreconditions.checkState(forceStart, () -> new UnavailableDataSourceException(ex, actualDataSourceName));

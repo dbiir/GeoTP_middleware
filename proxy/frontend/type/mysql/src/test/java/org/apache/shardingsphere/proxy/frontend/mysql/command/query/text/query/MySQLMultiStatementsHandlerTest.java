@@ -49,17 +49,13 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.nullable;
-import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(AutoMockExtension.class)
 @StaticMockSettings(ProxyContext.class)
@@ -73,9 +69,9 @@ class MySQLMultiStatementsHandlerTest {
         MySQLUpdateStatement expectedStatement = mock(MySQLUpdateStatement.class);
         ContextManager contextManager = mockContextManager();
         when(ProxyContext.getInstance().getContextManager()).thenReturn(contextManager);
-        ResponseHeader actual = new MySQLMultiStatementsHandler(connectionSession, expectedStatement, sql).execute();
-        assertThat(actual, instanceOf(UpdateResponseHeader.class));
-        UpdateResponseHeader actualHeader = (UpdateResponseHeader) actual;
+        List<ResponseHeader> actual = new MySQLMultiStatementsHandler(connectionSession, expectedStatement, sql, false).execute();
+        assertThat(actual.get(0), instanceOf(UpdateResponseHeader.class));
+        UpdateResponseHeader actualHeader = (UpdateResponseHeader) actual.get(0);
         assertThat(actualHeader.getUpdateCount(), is(3L));
         assertThat(actualHeader.getLastInsertId(), is(0L));
         assertThat(actualHeader.getSqlStatement(), is(expectedStatement));

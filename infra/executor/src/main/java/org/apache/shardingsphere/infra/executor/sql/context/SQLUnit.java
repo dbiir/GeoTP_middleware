@@ -54,7 +54,7 @@ public final class SQLUnit {
     }
 
     public void CombineSQLUnit(SQLUnit other) {
-        sql = sql + other.getSql();
+        sql = sql + ";" + other.getSql();
         parameters.addAll(other.getParameters());
         tableRouteMappers.addAll(other.getTableRouteMappers());
     }

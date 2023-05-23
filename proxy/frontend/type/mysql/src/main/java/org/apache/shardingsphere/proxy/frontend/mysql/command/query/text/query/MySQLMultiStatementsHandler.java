@@ -17,6 +17,7 @@
 
 package org.apache.shardingsphere.proxy.frontend.mysql.command.query.text.query;
 
+import lombok.extern.slf4j.Slf4j;
 import org.apache.shardingsphere.infra.binder.QueryContext;
 import org.apache.shardingsphere.infra.binder.SQLStatementContextFactory;
 import org.apache.shardingsphere.infra.binder.statement.SQLStatementContext;
@@ -34,6 +35,11 @@ import org.apache.shardingsphere.infra.executor.sql.execute.engine.SQLExecutorEx
 import org.apache.shardingsphere.infra.executor.sql.execute.engine.driver.jdbc.JDBCExecutionUnit;
 import org.apache.shardingsphere.infra.executor.sql.execute.engine.driver.jdbc.JDBCExecutor;
 import org.apache.shardingsphere.infra.executor.sql.execute.engine.driver.jdbc.JDBCExecutorCallback;
+import org.apache.shardingsphere.infra.executor.sql.execute.result.ExecuteResult;
+import org.apache.shardingsphere.infra.executor.sql.execute.result.query.QueryResult;
+import org.apache.shardingsphere.infra.executor.sql.execute.result.query.QueryResultMetaData;
+import org.apache.shardingsphere.infra.executor.sql.execute.result.query.impl.driver.jdbc.type.memory.JDBCMemoryQueryResult;
+import org.apache.shardingsphere.infra.executor.sql.execute.result.query.impl.driver.jdbc.type.stream.JDBCStreamQueryResult;
 import org.apache.shardingsphere.infra.executor.sql.execute.result.update.UpdateResult;
 import org.apache.shardingsphere.infra.executor.sql.prepare.driver.DriverExecutionPrepareEngine;
 import org.apache.shardingsphere.infra.executor.sql.prepare.driver.jdbc.JDBCDriverType;
@@ -50,6 +56,8 @@ import org.apache.shardingsphere.proxy.backend.context.BackendExecutorContext;
 import org.apache.shardingsphere.proxy.backend.context.ProxyContext;
 import org.apache.shardingsphere.proxy.backend.handler.ProxyBackendHandler;
 import org.apache.shardingsphere.proxy.backend.response.header.ResponseHeader;
+import org.apache.shardingsphere.proxy.backend.response.header.query.QueryHeader;
+import org.apache.shardingsphere.proxy.backend.response.header.query.QueryResponseHeader;
 import org.apache.shardingsphere.proxy.backend.response.header.update.UpdateResponseHeader;
 import org.apache.shardingsphere.proxy.backend.session.ConnectionSession;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
@@ -57,6 +65,7 @@ import org.apache.shardingsphere.sql.parser.sql.common.statement.dml.UpdateState
 import org.apache.shardingsphere.sql.parser.sql.common.util.SQLUtils;
 
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.*;
@@ -65,6 +74,7 @@ import java.util.regex.Pattern;
 /**
  * Handler for MySQL multi statements.
  */
+@Slf4j
 public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
     
     private static final Pattern MULTI_UPDATE_STATEMENTS = Pattern.compile(";(?=\\s*update)", Pattern.CASE_INSENSITIVE);
@@ -88,8 +98,10 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
     private final Map<String, List<Integer>> dataSourcesToCommandId = new HashMap<>();
 
     private ExecutionContext anyExecutionContext;
+
+    private boolean isBatchInsert;
     
-    public MySQLMultiStatementsHandler(final ConnectionSession connectionSession, final SQLStatement sqlStatementSample, final String sql) {
+    public MySQLMultiStatementsHandler(final ConnectionSession connectionSession, final SQLStatement sqlStatementSample, final String sql, boolean isBatchInsert) {
         jdbcExecutor = new JDBCExecutor(BackendExecutorContext.getInstance().getExecutorEngine(), connectionSession.getConnectionContext());
         connectionSession.getBackendConnection().handleAutoCommit();
         this.connectionSession = connectionSession;
@@ -107,14 +119,16 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
             }
         }
         this.sqlStatements = null;
+        this.isBatchInsert = isBatchInsert;
     }
 
-    public MySQLMultiStatementsHandler(final ConnectionSession connectionSession, final List<SQLStatement> sqlStatements, final String sql) {
+    public MySQLMultiStatementsHandler(final ConnectionSession connectionSession, final List<SQLStatement> sqlStatements, final String sql, boolean isBatchInsert) {
         jdbcExecutor = new JDBCExecutor(BackendExecutorContext.getInstance().getExecutorEngine(), connectionSession.getConnectionContext());
         connectionSession.getBackendConnection().handleAutoCommit();
         this.connectionSession = connectionSession;
         this.sqlStatements = sqlStatements;
         this.sqlStatementSample = null;
+        this.isBatchInsert = isBatchInsert;
 //        Pattern pattern = sqlStatementSample instanceof UpdateStatement ? MULTI_UPDATE_STATEMENTS : MULTI_DELETE_STATEMENTS;
         List<String> sqls = SQLUtils.splitMultiSQL(sql);
 
@@ -122,7 +136,6 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
 
         Map<String, List<ExecutionUnit>> groupExecuteUnits = new HashMap<>();
         for (int i = 0; i < sqlStatements.size(); i++) {
-//            SQLStatement eachSQLStatement = sqlParserEngine.parse(each, false);
             ExecutionContext executionContext = createExecutionContext(createQueryContext(sqls.get(i), sqlStatements.get(i)));
             if (null == anyExecutionContext) {
                 anyExecutionContext = executionContext;
@@ -175,12 +188,14 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                 metaDataContexts.getMetaData().getDatabase(connectionSession.getDatabaseName()).getResourceMetaData().getStorageTypes());
         ExecutionGroupContext<JDBCExecutionUnit> executionGroupContext = prepareEngine.prepare(anyExecutionContext.getRouteContext(), samplingExecutionUnit(),
                 new ExecutionGroupReportContext(connectionSession.getDatabaseName(), connectionSession.getGrantee(), connectionSession.getExecutionId()));
-        for (ExecutionGroup<JDBCExecutionUnit> eachGroup : executionGroupContext.getInputGroups()) {
-            for (JDBCExecutionUnit each : eachGroup.getInputs()) {
-                prepareBatchedStatement(each);
+        if (isBatchInsert) {
+            for (ExecutionGroup<JDBCExecutionUnit> eachGroup : executionGroupContext.getInputGroups()) {
+                for (JDBCExecutionUnit each : eachGroup.getInputs()) {
+                    prepareBatchedStatement(each);
+                }
             }
         }
-        return executeBatchedStatements(executionGroupContext);
+        return executeMultiStatements(executionGroupContext);
     }
     
     private Collection<ExecutionUnit> samplingExecutionUnit() {
@@ -198,31 +213,126 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
         }
     }
 
-    private List<ResponseHeader> executeBatchedStatements(final ExecutionGroupContext<JDBCExecutionUnit> executionGroupContext) throws SQLException {
+    private QueryHeader generateQueryHeader(QueryResultMetaData meta, int colIndex) throws SQLException {
+        String schemaName = connectionSession.getDatabaseName();
+
+        return new QueryHeader(schemaName,
+                meta.getTableName(colIndex),
+                meta.getColumnLabel(colIndex),
+                meta.getColumnName(colIndex),
+                meta.getColumnType(colIndex),
+                meta.getColumnTypeName(colIndex),
+                meta.getColumnLength(colIndex),
+                meta.getDecimals(colIndex),
+                meta.isSigned(colIndex),
+                colIndex==0,
+                meta.isNotNull(colIndex),
+                meta.isAutoIncrement(colIndex));
+    }
+
+    private List<ResponseHeader> executeMultiStatements(final ExecutionGroupContext<JDBCExecutionUnit> executionGroupContext) throws SQLException {
         boolean isExceptionThrown = SQLExecutorExceptionHandler.isExceptionThrown();
         List<ResponseHeader> result = new LinkedList<>();
         Map<String, DatabaseType> storageTypes = metaDataContexts.getMetaData().getDatabase(connectionSession.getDatabaseName()).getResourceMetaData().getStorageTypes();
-        JDBCExecutorCallback<int[]> callback = new BatchedJDBCExecutorCallback(storageTypes, sqlStatementSample, isExceptionThrown);
-        List<?> executeResults = jdbcExecutor.execute(executionGroupContext, callback);
-//        int updated = 0;
-//        for (int[] eachResult : executeResults) {
-//            for (int each : eachResult) {
-//                updated += each;
-//            }
-//        }
+        if (isBatchInsert) {
+            JDBCExecutorCallback<int[]> callback = new BatchedInsertJDBCExecutorCallback(storageTypes, sqlStatementSample, isExceptionThrown);
+            List<int[]> executeResults = jdbcExecutor.execute(executionGroupContext, callback);
+            int updated = 0;
+            for (int[] eachResult : executeResults) {
+                for (int each : eachResult) {
+                    updated += each;
+                }
+            }
+            result.add(new UpdateResponseHeader(sqlStatementSample, Collections.singletonList(new UpdateResult(updated, 0L))));
+        } else {
+            JDBCExecutorCallback<List<ExecuteResult>> callback = new BatchedJDBCExecutorCallback(storageTypes, sqlStatementSample, isExceptionThrown);
+            List<List<ExecuteResult>> executeResults = jdbcExecutor.execute(executionGroupContext, callback);
 
-        result.add(new UpdateResponseHeader(sqlStatementSample, Collections.singletonList(new UpdateResult(0, 0L))));
+            boolean first = false;
+            for (List<ExecuteResult> each: executeResults) {
+                for (ExecuteResult obj: each) {
+                    if (obj instanceof QueryResult) {
+                        QueryResultMetaData meta = ((QueryResult)obj).getMetaData();
+                        int columnCount = meta.getColumnCount();
+                        List<QueryHeader> headers = new ArrayList<>(columnCount);
+
+                        for (int i = 1; i <= columnCount; i++) {
+                            headers.add(generateQueryHeader(meta, i));
+                        }
+
+                        if (!first) {
+                            result.add(new QueryResponseHeader(headers));
+                            ((QueryResult)obj).close();
+                            first = true;
+                        }
+                    } else {
+                        if (!first) {
+                            result.add(new UpdateResponseHeader(sqlStatementSample, Collections.singletonList(new UpdateResult(((UpdateResult) obj).getUpdateCount(), ((UpdateResult) obj).getLastInsertId()))));
+                            first = true;
+                        }
+                    }
+                }
+            }
+        }
 
         return result;
     }
 
-    private static class BatchedJDBCExecutorCallback extends JDBCExecutorCallback<int[]> {
+    private static class BatchedJDBCExecutorCallback extends JDBCExecutorCallback<List<ExecuteResult>> {
         
         BatchedJDBCExecutorCallback(final Map<String, DatabaseType> storageTypes, final SQLStatement sqlStatement, final boolean isExceptionThrown) {
             super(TypedSPILoader.getService(DatabaseType.class, "MySQL"), storageTypes, sqlStatement, isExceptionThrown);
         }
         
         @Override
+        protected List<ExecuteResult> executeSQL(final String sql, final Statement statement, final ConnectionMode connectionMode, final DatabaseType storageType) throws SQLException {
+            try {
+                boolean resultsAvailable = statement.execute(sql);
+
+                List<ExecuteResult> list = new ArrayList<>();
+                while(true) {
+                    if (resultsAvailable) {
+                        ResultSet rs = statement.getResultSet();
+                        list.add(createQueryResult(rs,connectionMode,storageType));
+                    } else {
+                        int update_cnt = statement.getUpdateCount();
+                        // TODO:
+                        if(update_cnt != -1) {
+                            list.add(new UpdateResult(update_cnt, 0));
+                        } else {
+                            break;
+                        }
+                    }
+
+                    resultsAvailable = statement.getMoreResults();
+                }
+
+                return list;
+            } catch (SQLException e) {
+                e.printStackTrace();
+            } finally {
+                statement.close();
+            }
+            return null;
+        }
+        
+        @SuppressWarnings("OptionalContainsCollection")
+        @Override
+        protected Optional<List<ExecuteResult>> getSaneResult(final SQLStatement sqlStatement, final SQLException ex) {
+            return Optional.empty();
+        }
+
+        private QueryResult createQueryResult(final ResultSet resultSet, final ConnectionMode connectionMode, final DatabaseType storageType) throws SQLException {
+            return ConnectionMode.MEMORY_STRICTLY == connectionMode ? new JDBCStreamQueryResult(resultSet) : new JDBCMemoryQueryResult(resultSet, storageType);
+        }
+    }
+
+    private static class BatchedInsertJDBCExecutorCallback extends JDBCExecutorCallback<int[]> {
+
+        BatchedInsertJDBCExecutorCallback(final Map<String, DatabaseType> storageTypes, final SQLStatement sqlStatement, final boolean isExceptionThrown) {
+            super(TypedSPILoader.getService(DatabaseType.class, "MySQL"), storageTypes, sqlStatement, isExceptionThrown);
+        }
+
         protected int[] executeSQL(final String sql, final Statement statement, final ConnectionMode connectionMode, final DatabaseType storageType) throws SQLException {
             try {
                 return statement.executeBatch();
@@ -230,7 +340,7 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                 statement.close();
             }
         }
-        
+
         @SuppressWarnings("OptionalContainsCollection")
         @Override
         protected Optional<int[]> getSaneResult(final SQLStatement sqlStatement, final SQLException ex) {

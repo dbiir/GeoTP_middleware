@@ -110,8 +110,7 @@ public final class ExecutorEngine implements AutoCloseable {
         if (executionGroupContext.getInputGroups().isEmpty()) {
             return Collections.emptyList();
         }
-        return serial ? serialExecute(executionGroupContext.getInputGroups().iterator(), firstCallback, callback)
-                : parallelExecute(executionGroupContext.getInputGroups().iterator(), firstCallback, callback);
+        return parallelExecute(executionGroupContext.getInputGroups().iterator(), firstCallback, callback);
     }
     
     private <I, O> List<O> serialExecute(final Iterator<ExecutionGroup<I>> executionGroups, final ExecutorCallback<I, O> firstCallback, final ExecutorCallback<I, O> callback) throws SQLException {

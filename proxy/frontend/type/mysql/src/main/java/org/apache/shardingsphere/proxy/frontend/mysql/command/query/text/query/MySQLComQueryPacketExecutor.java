@@ -42,6 +42,7 @@ import org.apache.shardingsphere.proxy.frontend.mysql.command.query.builder.Resp
 import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.dal.EmptyStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.dml.DeleteStatement;
+import org.apache.shardingsphere.sql.parser.sql.common.statement.dml.InsertStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.dml.UpdateStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.util.SQLUtils;
 
@@ -67,13 +68,31 @@ public final class MySQLComQueryPacketExecutor implements QueryCommandExecutor {
     public MySQLComQueryPacketExecutor(final MySQLComQueryPacket packet, final ConnectionSession connectionSession) throws SQLException {
         this.connectionSession = connectionSession;
         DatabaseType databaseType = TypedSPILoader.getService(DatabaseType.class, "MySQL");
-        List<SQLStatement> sqlStatements = parseSql(packet.getSql(), databaseType);
-        if (sqlStatements.size() <= 1) {
-            proxyBackendHandler = ProxyBackendHandlerFactory.newInstance(databaseType, packet.getSql(), sqlStatements.get(0), connectionSession, packet.getHintValueContext());
+        SQLStatement sqlStatement = parseSql1(packet.getSql(), databaseType);
+
+        if (sqlStatement instanceof InsertStatement) {
+            proxyBackendHandler = ProxyBackendHandlerFactory.newInstance(databaseType, packet.getSql(), sqlStatement, connectionSession, packet.getHintValueContext());
         } else {
-            proxyBackendHandler = new MySQLMultiStatementsHandler(connectionSession, sqlStatements, packet.getSql());
+            List<SQLStatement> sqlStatements = parseSql(packet.getSql(), databaseType);
+            if (sqlStatements.size() <= 1) {
+                proxyBackendHandler = ProxyBackendHandlerFactory.newInstance(databaseType, packet.getSql(), sqlStatements.get(0), connectionSession, packet.getHintValueContext());
+            } else {
+                proxyBackendHandler = new MySQLMultiStatementsHandler(connectionSession, sqlStatements, packet.getSql(), false);
+            }
         }
+
+//        proxyBackendHandler = areMultiStatements(connectionSession, sqlStatement, packet.getSql()) ? new MySQLMultiStatementsHandler(connectionSession, sqlStatement, packet.getSql(), true)
+//                : ProxyBackendHandlerFactory.newInstance(databaseType, packet.getSql(), sqlStatement, connectionSession, packet.getHintValueContext());
         characterSet = connectionSession.getAttributeMap().attr(MySQLConstants.MYSQL_CHARACTER_SET_ATTRIBUTE_KEY).get().getId();
+    }
+
+    private SQLStatement parseSql1(final String sql, final DatabaseType databaseType) {
+        if (SQLUtils.trimComment(sql).isEmpty()) {
+            return new EmptyStatement();
+        }
+        MetaDataContexts metaDataContexts = ProxyContext.getInstance().getContextManager().getMetaDataContexts();
+        SQLParserRule sqlParserRule = metaDataContexts.getMetaData().getGlobalRuleMetaData().getSingleRule(SQLParserRule.class);
+        return sqlParserRule.getSQLParserEngine(databaseType.getType()).parse(sql, false);
     }
     
     private List<SQLStatement> parseSql(final String sql, final DatabaseType databaseType) {
@@ -87,7 +106,7 @@ public final class MySQLComQueryPacketExecutor implements QueryCommandExecutor {
             result.add(new EmptyStatement());
         } else {
             MetaDataContexts metaDataContexts = ProxyContext.getInstance().getContextManager().getMetaDataContexts();
-            SQLParserRule sqlParserRule = metaDataContexts.getMetaData().getGlobalRuleMetaData().getSingleRule(SQLParserRule.class);
+            SQLParserRule sqlParserRule = metaDataContexts. getMetaData().getGlobalRuleMetaData().getSingleRule(SQLParserRule.class);
             for (String each: singleSqls) {
                 result.add(sqlParserRule.getSQLParserEngine(databaseType.getType()).parse(each, false));
             }
@@ -110,10 +129,10 @@ public final class MySQLComQueryPacketExecutor implements QueryCommandExecutor {
 
         for (ResponseHeader each: responseHeader) {
             if (each instanceof QueryResponseHeader) {
-                result.addAll(processQuery((QueryResponseHeader) each)) ;
+                result.addAll(processQuery((QueryResponseHeader) each)) ;break;
             } else if (each instanceof UpdateResponseHeader) {
                 responseType = ResponseType.UPDATE;
-                result.addAll(processUpdate((UpdateResponseHeader) each));
+                result.addAll(processUpdate((UpdateResponseHeader) each)); break;
             }
         }
         return result;

@@ -140,7 +140,7 @@ class MySQLComStmtExecuteExecutorTest {
         MySQLComStmtExecuteExecutor executor = new MySQLComStmtExecuteExecutor(packet, connectionSession);
         QueryHeader queryHeader = mock(QueryHeader.class);
         when(queryHeader.getColumnTypeName()).thenReturn("VARCHAR");
-        when(proxyBackendHandler.execute()).thenReturn(new QueryResponseHeader(Collections.singletonList(queryHeader)));
+        when(proxyBackendHandler.execute()).thenReturn(Collections.singletonList(new QueryResponseHeader(Collections.singletonList(queryHeader))));
         when(proxyBackendHandler.next()).thenReturn(true, false);
         when(proxyBackendHandler.getRowData()).thenReturn(new QueryResponseRow(Collections.singletonList(new QueryResponseCell(Types.INTEGER, 1))));
         when(ProxyBackendHandlerFactory.newInstance(any(MySQLDatabaseType.class), any(QueryContext.class), eq(connectionSession), anyBoolean())).thenReturn(proxyBackendHandler);
@@ -163,7 +163,7 @@ class MySQLComStmtExecuteExecutorTest {
         when(packet.getStatementId()).thenReturn(2);
         when(packet.getNewParametersBoundFlag()).thenReturn(MySQLNewParametersBoundFlag.PARAMETER_TYPE_EXIST);
         MySQLComStmtExecuteExecutor executor = new MySQLComStmtExecuteExecutor(packet, connectionSession);
-        when(proxyBackendHandler.execute()).thenReturn(new UpdateResponseHeader(new MySQLUpdateStatement()));
+        when(proxyBackendHandler.execute()).thenReturn(Collections.singletonList(new UpdateResponseHeader(new MySQLUpdateStatement())));
         when(ProxyBackendHandlerFactory.newInstance(any(MySQLDatabaseType.class), any(QueryContext.class), eq(connectionSession), anyBoolean())).thenReturn(proxyBackendHandler);
         Iterator<DatabasePacket<?>> actual = executor.execute().iterator();
         assertThat(executor.getResponseType(), is(ResponseType.UPDATE));
@@ -177,7 +177,7 @@ class MySQLComStmtExecuteExecutorTest {
         when(packet.getStatementId()).thenReturn(3);
         MySQLComStmtExecuteExecutor executor = new MySQLComStmtExecuteExecutor(packet, connectionSession);
         ProxyBackendHandler proxyBackendHandler = mock(ProxyBackendHandler.class);
-        when(proxyBackendHandler.execute()).thenReturn(new UpdateResponseHeader(new MySQLCommitStatement()));
+        when(proxyBackendHandler.execute()).thenReturn(Collections.singletonList(new UpdateResponseHeader(new MySQLCommitStatement())));
         when(ProxyBackendHandlerFactory.newInstance(any(MySQLDatabaseType.class), any(QueryContext.class), eq(connectionSession), eq(true))).thenReturn(proxyBackendHandler);
         Iterator<DatabasePacket<?>> actual = executor.execute().iterator();
         assertThat(executor.getResponseType(), is(ResponseType.UPDATE));
