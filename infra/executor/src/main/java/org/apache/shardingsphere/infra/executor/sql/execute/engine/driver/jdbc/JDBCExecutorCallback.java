@@ -18,6 +18,7 @@
 package org.apache.shardingsphere.infra.executor.sql.execute.engine.driver.jdbc;
 
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import org.apache.shardingsphere.infra.database.metadata.DataSourceMetaData;
 import org.apache.shardingsphere.infra.database.type.DatabaseType;
 import org.apache.shardingsphere.infra.executor.kernel.model.ExecutorCallback;
@@ -56,7 +57,7 @@ public abstract class JDBCExecutorCallback<T> implements ExecutorCallback<JDBCEx
     private final SQLStatement sqlStatement;
     
     private final boolean isExceptionThrown;
-    
+
     @Override
     public final Collection<T> execute(final Collection<JDBCExecutionUnit> executionUnits, final boolean isTrunkThread) throws SQLException {
         // TODO It is better to judge whether need sane result before execute, can avoid exception thrown
@@ -75,12 +76,17 @@ public abstract class JDBCExecutorCallback<T> implements ExecutorCallback<JDBCEx
      *
      * @see <a href="https://github.com/apache/skywalking/blob/master/docs/en/guides/Java-Plugin-Development-Guide.md#user-content-plugin-development-guide">Plugin Development Guide</a>
      */
+    @SneakyThrows
     private T execute(final JDBCExecutionUnit jdbcExecutionUnit, final boolean isTrunkThread) throws SQLException {
         SQLExecutorExceptionHandler.setExceptionThrown(isExceptionThrown);
         DatabaseType storageType = storageTypes.get(jdbcExecutionUnit.getExecutionUnit().getDataSourceName());
         DataSourceMetaData dataSourceMetaData = getDataSourceMetaData(jdbcExecutionUnit.getStorageResource().getConnection().getMetaData(), storageType);
         SQLExecutionHook sqlExecutionHook = new SPISQLExecutionHook();
         try {
+            // delay execution
+            if (jdbcExecutionUnit.getExecutionUnit().GetDelayTime() > 0) {
+                Thread.sleep(jdbcExecutionUnit.getExecutionUnit().GetDelayTime());
+            }
             SQLUnit sqlUnit = jdbcExecutionUnit.getExecutionUnit().getSqlUnit();
             sqlExecutionHook.start(jdbcExecutionUnit.getExecutionUnit().getDataSourceName(), sqlUnit.getSql(), sqlUnit.getParameters(), dataSourceMetaData, isTrunkThread);
             T result = executeSQL(sqlUnit.getSql(), jdbcExecutionUnit.getStorageResource(), jdbcExecutionUnit.getConnectionMode(), storageType);

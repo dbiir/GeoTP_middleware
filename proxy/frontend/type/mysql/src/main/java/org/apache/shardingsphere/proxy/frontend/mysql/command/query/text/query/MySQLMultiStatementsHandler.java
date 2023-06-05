@@ -60,6 +60,7 @@ import org.apache.shardingsphere.proxy.backend.response.header.query.QueryHeader
 import org.apache.shardingsphere.proxy.backend.response.header.query.QueryResponseHeader;
 import org.apache.shardingsphere.proxy.backend.response.header.update.UpdateResponseHeader;
 import org.apache.shardingsphere.proxy.backend.session.ConnectionSession;
+import org.apache.shardingsphere.proxy.backend.statistics.network.Latency;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.dml.UpdateStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.util.SQLUtils;
@@ -152,6 +153,24 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                 first.CombineExecutionUnit(each.get(i));
             }
             dataSourcesToExecutionUnits.computeIfAbsent(first.getDataSourceName(), unused -> new LinkedList<>()).add(first);
+        }
+
+        if (Latency.getInstance().NeedDelay()) {
+            analysisLatency(groupExecuteUnits);
+        }
+    }
+
+    private void analysisLatency(Map<String, List<ExecutionUnit>> groupUnits) {
+        // harp
+        long maxLatency = 0;
+        for (String each: groupUnits.keySet()) {
+            // TODO: Need amendment !!!
+            long srcLat = (long) Latency.getInstance().GetLatency(each);
+            maxLatency = Math.max(maxLatency, srcLat);
+        }
+
+        for (Map.Entry<String, List<ExecutionUnit>> each: groupUnits.entrySet()) {
+            each.getValue().get(0).SetDelayTime(2 * (maxLatency - (long) Latency.getInstance().GetLatency(each.getKey())));
         }
     }
     

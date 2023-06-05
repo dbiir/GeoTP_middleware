@@ -23,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.shardingsphere.db.protocol.constant.CommonConstants;
 import org.apache.shardingsphere.db.protocol.event.WriteCompleteEvent;
+import org.apache.shardingsphere.db.protocol.mysql.packet.command.query.text.fieldlist.MySQLComFieldListPacket;
 import org.apache.shardingsphere.db.protocol.packet.CommandPacket;
 import org.apache.shardingsphere.db.protocol.packet.CommandPacketType;
 import org.apache.shardingsphere.db.protocol.packet.DatabasePacket;
@@ -33,6 +34,7 @@ import org.apache.shardingsphere.infra.util.exception.external.sql.ShardingSpher
 import org.apache.shardingsphere.proxy.backend.context.ProxyContext;
 import org.apache.shardingsphere.proxy.backend.exception.BackendConnectionException;
 import org.apache.shardingsphere.proxy.backend.session.ConnectionSession;
+import org.apache.shardingsphere.proxy.backend.statistics.monitor.LockWait;
 import org.apache.shardingsphere.proxy.frontend.command.executor.CommandExecutor;
 import org.apache.shardingsphere.proxy.frontend.command.executor.QueryCommandExecutor;
 import org.apache.shardingsphere.proxy.frontend.constant.LogMDCConstants;
@@ -108,6 +110,10 @@ public final class CommandExecutorTask implements Runnable {
         CommandPacketType type = commandExecuteEngine.getCommandPacketType(payload);
         CommandPacket commandPacket = commandExecuteEngine.getCommandPacket(payload, type, connectionSession);
         CommandExecutor commandExecutor = commandExecuteEngine.getCommandExecutor(type, commandPacket, connectionSession);
+        // TODO: Add tables to
+        if(commandPacket instanceof MySQLComFieldListPacket) {
+            LockWait.getInstance().registerTable(((MySQLComFieldListPacket) commandPacket).getTable());
+        }
         return doExecuteCommand(context, commandExecuteEngine, commandExecutor);
     }
     

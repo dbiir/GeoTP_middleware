@@ -24,14 +24,20 @@ import org.apache.shardingsphere.infra.config.props.ConfigurationPropertyKey;
 import org.apache.shardingsphere.proxy.arguments.BootstrapArguments;
 import org.apache.shardingsphere.proxy.backend.config.ProxyConfigurationLoader;
 import org.apache.shardingsphere.proxy.backend.config.YamlProxyConfiguration;
+import org.apache.shardingsphere.proxy.backend.config.yaml.YamlProxyDataSourceConfiguration;
+import org.apache.shardingsphere.proxy.backend.config.yaml.YamlProxyDatabaseConfiguration;
+import org.apache.shardingsphere.proxy.backend.statistics.StatFlusher;
+import org.apache.shardingsphere.proxy.backend.statistics.monitor.LockWait;
+import org.apache.shardingsphere.proxy.backend.statistics.network.Latency;
 import org.apache.shardingsphere.proxy.frontend.CDCServer;
 import org.apache.shardingsphere.proxy.frontend.ShardingSphereProxy;
 import org.apache.shardingsphere.proxy.initializer.BootstrapInitializer;
 
 import java.io.IOException;
 import java.sql.SQLException;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * ShardingSphere-Proxy Bootstrap.
@@ -47,15 +53,55 @@ public final class Bootstrap {
      * @throws SQLException SQL exception
      */
     public static void main(final String[] args) throws IOException, SQLException {
-        BootstrapArguments bootstrapArgs = new BootstrapArguments(args);
+        BootstrapArguments bootstrapArgs = new BootstrapArguments(preProcessingArgs(args));
         YamlProxyConfiguration yamlConfig = ProxyConfigurationLoader.load(bootstrapArgs.getConfigurationPath());
         int port = bootstrapArgs.getPort().orElseGet(() -> new ConfigurationProperties(yamlConfig.getServerConfiguration().getProps()).getValue(ConfigurationPropertyKey.PROXY_DEFAULT_PORT));
         List<String> addresses = bootstrapArgs.getAddresses();
         new BootstrapInitializer().init(yamlConfig, port, bootstrapArgs.getForce());
         Optional.ofNullable((Integer) yamlConfig.getServerConfiguration().getProps().get(ConfigurationPropertyKey.CDC_SERVER_PORT.getKey()))
                 .ifPresent(cdcPort -> new CDCServer(addresses, cdcPort).start());
+        // initial state of harp
+        initialStateOfHarp(yamlConfig);
+
         ShardingSphereProxy shardingSphereProxy = new ShardingSphereProxy();
         bootstrapArgs.getSocketPath().ifPresent(shardingSphereProxy::start);
         shardingSphereProxy.start(port, addresses);
+    }
+
+    private static void initialStateOfHarp(YamlProxyConfiguration yamlConfig) {
+        for (Map.Entry<String, YamlProxyDatabaseConfiguration> each: yamlConfig.getDatabaseConfigurations().entrySet()) {
+            if (each.getValue() != null) {
+                for (Map.Entry<String, YamlProxyDataSourceConfiguration> ds: each.getValue().getDataSources().entrySet()) {
+                    Latency.getInstance().AddDataSource(ds.getKey());
+                    String regEx="((2[0-4]\\d|25[0-5]|[01]?\\d\\d?)\\.){3}(2[0-4]\\d|25[0-5]|[01]?\\d\\d?)";
+                    Pattern p = Pattern.compile(regEx);
+                    Matcher m = p.matcher(ds.getValue().getUrl());
+                    if (m.find()) {
+                        Latency.getInstance().SetDataSourceIp(ds.getKey(), m.group());
+                        System.out.println(m.group());
+                    }
+                }
+            }
+        }
+
+        if (LockWait.getInstance().needStatistic()) {
+            Thread flushThread = new Thread(new StatFlusher());
+            flushThread.start();
+        }
+    }
+
+    private static String[] preProcessingArgs(final String[] args) {
+        List<String> result = new LinkedList<>();
+        for (String each: args) {
+            if (each.contains("--stat")) {
+                LockWait.getInstance().setEnableStatistical(each.contains("true"));
+            } else if (each.contains("--alg")) {
+                String[] split = each.split("=");
+                Latency.getInstance().SetAlgorithm(split[split.length-1]);
+            } else {
+                result.add(each);
+            }
+        }
+        return result.toArray(new String[0]);
     }
 }

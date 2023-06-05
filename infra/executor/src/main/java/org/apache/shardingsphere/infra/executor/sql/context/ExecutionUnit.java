@@ -35,7 +35,17 @@ public final class ExecutionUnit {
     
     private final SQLUnit sqlUnit;
 
-    public final void CombineExecutionUnit(ExecutionUnit other) {
+    private long delayTime;
+
+    public long GetDelayTime() {
+        return delayTime;
+    }
+
+    public void SetDelayTime(long delayTime) {
+        this.delayTime = delayTime;
+    }
+
+    public void CombineExecutionUnit(ExecutionUnit other) {
         sqlUnit.CombineSQLUnit(other.getSqlUnit());
     }
 }

@@ -49,13 +49,16 @@ import org.apache.shardingsphere.proxy.backend.context.BackendExecutorContext;
 import org.apache.shardingsphere.proxy.backend.context.ProxyContext;
 import org.apache.shardingsphere.proxy.backend.session.ConnectionSession;
 import org.apache.shardingsphere.proxy.backend.session.transaction.TransactionStatus;
+import org.apache.shardingsphere.proxy.backend.statistics.monitor.LockWait;
+import org.apache.shardingsphere.sql.parser.sql.common.segment.dml.expr.BinaryOperationExpression;
+import org.apache.shardingsphere.sql.parser.sql.common.segment.dml.expr.simple.LiteralExpressionSegment;
+import org.apache.shardingsphere.sql.parser.sql.common.segment.generic.table.SimpleTableSegment;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
-import org.apache.shardingsphere.sql.parser.sql.common.statement.ddl.CloseStatement;
-import org.apache.shardingsphere.sql.parser.sql.common.statement.ddl.DDLStatement;
-import org.apache.shardingsphere.sql.parser.sql.common.statement.ddl.FetchStatement;
-import org.apache.shardingsphere.sql.parser.sql.common.statement.ddl.MoveStatement;
-import org.apache.shardingsphere.sql.parser.sql.common.statement.ddl.TruncateStatement;
+import org.apache.shardingsphere.sql.parser.sql.common.statement.ddl.*;
+import org.apache.shardingsphere.sql.parser.sql.common.statement.dml.SelectStatement;
+import org.apache.shardingsphere.sql.parser.sql.common.statement.dml.UpdateStatement;
 import org.apache.shardingsphere.sql.parser.sql.dialect.statement.mysql.dml.MySQLInsertStatement;
+import org.apache.shardingsphere.sql.parser.sql.dialect.statement.mysql.dml.MySQLUpdateStatement;
 import org.apache.shardingsphere.sql.parser.sql.dialect.statement.opengauss.OpenGaussStatement;
 import org.apache.shardingsphere.sql.parser.sql.dialect.statement.opengauss.ddl.OpenGaussCursorStatement;
 import org.apache.shardingsphere.sql.parser.sql.dialect.statement.postgresql.PostgreSQLStatement;
@@ -197,8 +200,45 @@ public final class ProxySQLExecutor {
         } catch (final SQLException ex) {
             return getSaneExecuteResults(executionContext, ex);
         }
+
+        boolean needStat = LockWait.getInstance().needStatistic();
+        boolean op = false;
+        String tableName = "";
+        int idx = -1;
+        long startTime = 0;
+        SQLStatement sqlStatement = executionContext.getQueryContext().getSqlStatementContext().getSqlStatement();
+        if (sqlStatement instanceof SelectStatement) {
+            if (((SelectStatement) sqlStatement).getFrom() != null && ((SelectStatement) sqlStatement).getFrom() instanceof SimpleTableSegment) {
+                tableName = ((SimpleTableSegment)((SelectStatement) sqlStatement).getFrom()).getTableName().getIdentifier().getValue();
+                if (tableName.contains("usertable")) {
+                    op = true;
+                }
+            }
+            if (((SelectStatement) sqlStatement).getWhere().isPresent() &&
+                    ((SelectStatement) sqlStatement).getWhere().get().getExpr() instanceof BinaryOperationExpression) {
+                idx = (int) ((LiteralExpressionSegment)((BinaryOperationExpression)((SelectStatement) sqlStatement).getWhere().get().getExpr()).getRight()).getLiterals();
+            }
+        } else if (sqlStatement instanceof UpdateStatement) {
+            if (((MySQLUpdateStatement) sqlStatement).getTable() != null && ((MySQLUpdateStatement) sqlStatement).getTable() instanceof SimpleTableSegment) {
+                tableName = ((SimpleTableSegment)((MySQLUpdateStatement) sqlStatement).getTable()).getTableName().getIdentifier().getValue();
+                if (tableName.contains("usertable")) {
+                    op = false;
+                }
+            }
+            if (((UpdateStatement) sqlStatement).getWhere().isPresent() &&
+                    (((UpdateStatement) sqlStatement).getWhere().get().getExpr()) instanceof BinaryOperationExpression) {
+                idx = (int) ((LiteralExpressionSegment)((BinaryOperationExpression)((UpdateStatement) sqlStatement).getWhere().get().getExpr()).getRight()).getLiterals();
+            }
+        }
+
         executeTransactionHooksBeforeExecuteSQL(backendConnection.getConnectionSession());
-        return jdbcExecutor.execute(executionContext.getQueryContext(), executionGroupContext, isReturnGeneratedKeys, isExceptionThrown);
+        if (needStat && idx >= 0)
+            startTime = System.nanoTime();
+        List<ExecuteResult> results = jdbcExecutor.execute(executionContext.getQueryContext(), executionGroupContext, isReturnGeneratedKeys, isExceptionThrown);
+        if (needStat && idx >= 0) {
+            LockWait.getInstance().updateLockTime(tableName, idx, (System.nanoTime() - startTime) * 1.0 / 1000000, op);
+        }
+        return results;
     }
     
     private void executeTransactionHooksBeforeExecuteSQL(final ConnectionSession connectionSession) throws SQLException {
