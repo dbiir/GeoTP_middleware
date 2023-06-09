@@ -87,7 +87,7 @@ public abstract class JDBCExecutorCallback<T> implements ExecutorCallback<JDBCEx
             if (jdbcExecutionUnit.getExecutionUnit().GetDelayTime() > 0) {
                 Thread.sleep(jdbcExecutionUnit.getExecutionUnit().GetDelayTime());
 //                Thread.sleep(100);
-                System.out.println("delay: " + jdbcExecutionUnit.getExecutionUnit().GetDelayTime() + "ms");
+//                System.out.println("delay: " + jdbcExecutionUnit.getExecutionUnit().GetDelayTime() + "ms");
             }
             SQLUnit sqlUnit = jdbcExecutionUnit.getExecutionUnit().getSqlUnit();
             sqlExecutionHook.start(jdbcExecutionUnit.getExecutionUnit().getDataSourceName(), sqlUnit.getSql(), sqlUnit.getParameters(), dataSourceMetaData, isTrunkThread);

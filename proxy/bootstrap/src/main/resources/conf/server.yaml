@@ -70,7 +70,7 @@ props:
 #  proxy-frontend-flush-threshold: 128  # The default value is 128.
 #  proxy-hint-enabled: false
 #  # sql-show is the same as props in logger ShardingSphere-SQL, and its priority is lower than logging rule
-  sql-show: true
+#  sql-show: true
 #  check-table-metadata-enabled: false
 #    # Proxy backend query fetch size. A larger value may increase the memory usage of ShardingSphere Proxy.
 #    # The default value is -1, which means set the minimum value for different JDBC drivers.
