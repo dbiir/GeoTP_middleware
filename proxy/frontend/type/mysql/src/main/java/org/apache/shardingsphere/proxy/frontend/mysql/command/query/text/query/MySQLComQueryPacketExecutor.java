@@ -69,7 +69,7 @@ public final class MySQLComQueryPacketExecutor implements QueryCommandExecutor {
         this.connectionSession = connectionSession;
         DatabaseType databaseType = TypedSPILoader.getService(DatabaseType.class, "MySQL");
         SQLStatement sqlStatement = parseSql1(packet.getSql(), databaseType);
-
+        
         if (sqlStatement instanceof InsertStatement) {
             proxyBackendHandler = ProxyBackendHandlerFactory.newInstance(databaseType, packet.getSql(), sqlStatement, connectionSession, packet.getHintValueContext());
         } else {
@@ -80,12 +80,12 @@ public final class MySQLComQueryPacketExecutor implements QueryCommandExecutor {
                 proxyBackendHandler = new MySQLMultiStatementsHandler(connectionSession, sqlStatements, packet.getSql(), false);
             }
         }
-
-//        proxyBackendHandler = areMultiStatements(connectionSession, sqlStatement, packet.getSql()) ? new MySQLMultiStatementsHandler(connectionSession, sqlStatement, packet.getSql(), true)
-//                : ProxyBackendHandlerFactory.newInstance(databaseType, packet.getSql(), sqlStatement, connectionSession, packet.getHintValueContext());
+        
+        // proxyBackendHandler = areMultiStatements(connectionSession, sqlStatement, packet.getSql()) ? new MySQLMultiStatementsHandler(connectionSession, sqlStatement, packet.getSql(), true)
+        // : ProxyBackendHandlerFactory.newInstance(databaseType, packet.getSql(), sqlStatement, connectionSession, packet.getHintValueContext());
         characterSet = connectionSession.getAttributeMap().attr(MySQLConstants.MYSQL_CHARACTER_SET_ATTRIBUTE_KEY).get().getId();
     }
-
+    
     private SQLStatement parseSql1(final String sql, final DatabaseType databaseType) {
         if (SQLUtils.trimComment(sql).isEmpty()) {
             return new EmptyStatement();
@@ -106,8 +106,8 @@ public final class MySQLComQueryPacketExecutor implements QueryCommandExecutor {
             result.add(new EmptyStatement());
         } else {
             MetaDataContexts metaDataContexts = ProxyContext.getInstance().getContextManager().getMetaDataContexts();
-            SQLParserRule sqlParserRule = metaDataContexts. getMetaData().getGlobalRuleMetaData().getSingleRule(SQLParserRule.class);
-            for (String each: singleSqls) {
+            SQLParserRule sqlParserRule = metaDataContexts.getMetaData().getGlobalRuleMetaData().getSingleRule(SQLParserRule.class);
+            for (String each : singleSqls) {
                 result.add(sqlParserRule.getSQLParserEngine(databaseType.getType()).parse(each, false));
             }
         }
@@ -126,13 +126,15 @@ public final class MySQLComQueryPacketExecutor implements QueryCommandExecutor {
         // TODO: multi executor response header
         Collection<DatabasePacket<?>> result = new LinkedList<>();
         List<ResponseHeader> responseHeader = proxyBackendHandler.execute();
-
-        for (ResponseHeader each: responseHeader) {
+        
+        for (ResponseHeader each : responseHeader) {
             if (each instanceof QueryResponseHeader) {
-                result.addAll(processQuery((QueryResponseHeader) each)) ;break;
+                result.addAll(processQuery((QueryResponseHeader) each));
+                break;
             } else if (each instanceof UpdateResponseHeader) {
                 responseType = ResponseType.UPDATE;
-                result.addAll(processUpdate((UpdateResponseHeader) each)); break;
+                result.addAll(processUpdate((UpdateResponseHeader) each));
+                break;
             }
         }
         return result;

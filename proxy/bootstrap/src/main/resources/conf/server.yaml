@@ -24,7 +24,7 @@
 mode:
   type: Standalone
 #  repository:
-#    type: ZooKeeper
+#    type: Standalone-File
 #    props:
 #      namespace: governance_ds
 #      server-lists: localhost:2181
@@ -42,9 +42,9 @@ authority:
   privilege:
     type: ALL_PERMITTED
 #
-transaction:
-  defaultType: XA
-  providerType: Atomikos
+#transaction:
+#  defaultType: XA
+#  providerType: Atomikos
 #
 #sqlParser:
 #  sqlCommentParseEnabled: false

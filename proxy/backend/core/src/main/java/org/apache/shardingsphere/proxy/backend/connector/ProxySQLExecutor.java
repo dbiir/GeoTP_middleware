@@ -200,7 +200,7 @@ public final class ProxySQLExecutor {
         } catch (final SQLException ex) {
             return getSaneExecuteResults(executionContext, ex);
         }
-
+        
         boolean needStat = LockWait.getInstance().needStatistic();
         boolean op = false;
         String tableName = "";
@@ -209,28 +209,28 @@ public final class ProxySQLExecutor {
         SQLStatement sqlStatement = executionContext.getQueryContext().getSqlStatementContext().getSqlStatement();
         if (sqlStatement instanceof SelectStatement) {
             if (((SelectStatement) sqlStatement).getFrom() != null && ((SelectStatement) sqlStatement).getFrom() instanceof SimpleTableSegment) {
-                tableName = ((SimpleTableSegment)((SelectStatement) sqlStatement).getFrom()).getTableName().getIdentifier().getValue();
+                tableName = ((SimpleTableSegment) ((SelectStatement) sqlStatement).getFrom()).getTableName().getIdentifier().getValue();
                 if (tableName.contains("usertable")) {
                     op = true;
                 }
             }
             if (((SelectStatement) sqlStatement).getWhere().isPresent() &&
                     ((SelectStatement) sqlStatement).getWhere().get().getExpr() instanceof BinaryOperationExpression) {
-                idx = (int) ((LiteralExpressionSegment)((BinaryOperationExpression)((SelectStatement) sqlStatement).getWhere().get().getExpr()).getRight()).getLiterals();
+                idx = (int) ((LiteralExpressionSegment) ((BinaryOperationExpression) ((SelectStatement) sqlStatement).getWhere().get().getExpr()).getRight()).getLiterals();
             }
         } else if (sqlStatement instanceof UpdateStatement) {
             if (((MySQLUpdateStatement) sqlStatement).getTable() != null && ((MySQLUpdateStatement) sqlStatement).getTable() instanceof SimpleTableSegment) {
-                tableName = ((SimpleTableSegment)((MySQLUpdateStatement) sqlStatement).getTable()).getTableName().getIdentifier().getValue();
+                tableName = ((SimpleTableSegment) ((MySQLUpdateStatement) sqlStatement).getTable()).getTableName().getIdentifier().getValue();
                 if (tableName.contains("usertable")) {
                     op = false;
                 }
             }
             if (((UpdateStatement) sqlStatement).getWhere().isPresent() &&
                     (((UpdateStatement) sqlStatement).getWhere().get().getExpr()) instanceof BinaryOperationExpression) {
-                idx = (int) ((LiteralExpressionSegment)((BinaryOperationExpression)((UpdateStatement) sqlStatement).getWhere().get().getExpr()).getRight()).getLiterals();
+                idx = (int) ((LiteralExpressionSegment) ((BinaryOperationExpression) ((UpdateStatement) sqlStatement).getWhere().get().getExpr()).getRight()).getLiterals();
             }
         }
-
+        
         executeTransactionHooksBeforeExecuteSQL(backendConnection.getConnectionSession());
         if (needStat && idx >= 0)
             startTime = System.nanoTime();

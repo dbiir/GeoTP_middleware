@@ -89,17 +89,17 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
     private final ConnectionSession connectionSession;
     
     private final SQLStatement sqlStatementSample;
-
+    
     private final List<SQLStatement> sqlStatements;
     
     private final MetaDataContexts metaDataContexts = ProxyContext.getInstance().getContextManager().getMetaDataContexts();
     
     private final Map<String, List<ExecutionUnit>> dataSourcesToExecutionUnits = new HashMap<>();
-
+    
     private final Map<String, List<Integer>> dataSourcesToCommandId = new HashMap<>();
-
+    
     private ExecutionContext anyExecutionContext;
-
+    
     private boolean isBatchInsert;
     
     public MySQLMultiStatementsHandler(final ConnectionSession connectionSession, final SQLStatement sqlStatementSample, final String sql, boolean isBatchInsert) {
@@ -122,7 +122,7 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
         this.sqlStatements = null;
         this.isBatchInsert = isBatchInsert;
     }
-
+    
     public MySQLMultiStatementsHandler(final ConnectionSession connectionSession, final List<SQLStatement> sqlStatements, final String sql, boolean isBatchInsert) {
         jdbcExecutor = new JDBCExecutor(BackendExecutorContext.getInstance().getExecutorEngine(), connectionSession.getConnectionContext());
         connectionSession.getBackendConnection().handleAutoCommit();
@@ -130,11 +130,11 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
         this.sqlStatements = sqlStatements;
         this.sqlStatementSample = null;
         this.isBatchInsert = isBatchInsert;
-//        Pattern pattern = sqlStatementSample instanceof UpdateStatement ? MULTI_UPDATE_STATEMENTS : MULTI_DELETE_STATEMENTS;
+        // Pattern pattern = sqlStatementSample instanceof UpdateStatement ? MULTI_UPDATE_STATEMENTS : MULTI_DELETE_STATEMENTS;
         List<String> sqls = SQLUtils.splitMultiSQL(sql);
-
+        
         assert (sqlStatements.size() == sqls.size());
-
+        
         Map<String, List<ExecutionUnit>> groupExecuteUnits = new HashMap<>();
         for (int i = 0; i < sqlStatements.size(); i++) {
             ExecutionContext executionContext = createExecutionContext(createQueryContext(sqls.get(i), sqlStatements.get(i)));
@@ -146,31 +146,35 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                 dataSourcesToCommandId.computeIfAbsent(eachExecutionUnit.getDataSourceName(), unused -> new LinkedList<>()).add(i);
             }
         }
-
-        for (List<ExecutionUnit> each: groupExecuteUnits.values()) {
+        
+        for (List<ExecutionUnit> each : groupExecuteUnits.values()) {
             ExecutionUnit first = each.get(0);
             for (int i = 1; i < each.size(); i++) {
                 first.CombineExecutionUnit(each.get(i));
             }
             dataSourcesToExecutionUnits.computeIfAbsent(first.getDataSourceName(), unused -> new LinkedList<>()).add(first);
         }
-
-        if (Latency.getInstance().NeedDelay()) {
-            analysisLatency(groupExecuteUnits);
-        }
+        
+//        if (Latency.getInstance().NeedDelay()) {
+//            analysisLatency(groupExecuteUnits);
+//        }
     }
-
+    
     private void analysisLatency(Map<String, List<ExecutionUnit>> groupUnits) {
         // harp
+        if (groupUnits.size() <= 1) {
+            return;
+        }
+
         long maxLatency = 0;
-        for (String each: groupUnits.keySet()) {
+        for (String each : groupUnits.keySet()) {
             // TODO: Need amendment !!!
             long srcLat = (long) Latency.getInstance().GetLatency(each);
             maxLatency = Math.max(maxLatency, srcLat);
         }
-
-        for (Map.Entry<String, List<ExecutionUnit>> each: groupUnits.entrySet()) {
-            each.getValue().get(0).SetDelayTime(2 * (maxLatency - (long) Latency.getInstance().GetLatency(each.getKey())));
+        
+        for (Map.Entry<String, List<ExecutionUnit>> each : groupUnits.entrySet()) {
+            each.getValue().get(0).SetDelayTime((maxLatency - (long) Latency.getInstance().GetLatency(each.getKey())));
         }
     }
     
@@ -214,7 +218,32 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                 }
             }
         }
+
+        if (Latency.getInstance().NeedDelay()) {
+            analysisLatency((List<ExecutionGroup<JDBCExecutionUnit>>) executionGroupContext.getInputGroups());
+        }
+
         return executeMultiStatements(executionGroupContext);
+    }
+
+    private void analysisLatency(List<ExecutionGroup<JDBCExecutionUnit>> groupUnits) {
+        // harp
+        if (groupUnits.size() <= 1) {
+            return;
+        }
+
+        long maxLatency = 0;
+
+        for (ExecutionGroup<JDBCExecutionUnit> each: groupUnits) {
+            // TODO: Need amendment !!!
+            long srcLat = (long) Latency.getInstance().GetLatency(each.getInputs().get(0).getExecutionUnit().getDataSourceName());
+            maxLatency = Math.max(maxLatency, srcLat);
+        }
+
+        for (ExecutionGroup<JDBCExecutionUnit> each: groupUnits) {
+            long srcLat = (long) Latency.getInstance().GetLatency(each.getInputs().get(0).getExecutionUnit().getDataSourceName());
+            each.getInputs().get(0).getExecutionUnit().SetDelayTime(maxLatency - srcLat);
+        }
     }
     
     private Collection<ExecutionUnit> samplingExecutionUnit() {
@@ -231,10 +260,10 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
             statement.addBatch(eachExecutionUnit.getSqlUnit().getSql());
         }
     }
-
+    
     private QueryHeader generateQueryHeader(QueryResultMetaData meta, int colIndex) throws SQLException {
         String schemaName = connectionSession.getDatabaseName();
-
+        
         return new QueryHeader(schemaName,
                 meta.getTableName(colIndex),
                 meta.getColumnLabel(colIndex),
@@ -244,11 +273,11 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                 meta.getColumnLength(colIndex),
                 meta.getDecimals(colIndex),
                 meta.isSigned(colIndex),
-                colIndex==0,
+                colIndex == 0,
                 meta.isNotNull(colIndex),
                 meta.isAutoIncrement(colIndex));
     }
-
+    
     private List<ResponseHeader> executeMultiStatements(final ExecutionGroupContext<JDBCExecutionUnit> executionGroupContext) throws SQLException {
         boolean isExceptionThrown = SQLExecutorExceptionHandler.isExceptionThrown();
         List<ResponseHeader> result = new LinkedList<>();
@@ -266,37 +295,38 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
         } else {
             JDBCExecutorCallback<List<ExecuteResult>> callback = new BatchedJDBCExecutorCallback(storageTypes, sqlStatementSample, isExceptionThrown);
             List<List<ExecuteResult>> executeResults = jdbcExecutor.execute(executionGroupContext, callback);
-
+            
             boolean first = false;
-            for (List<ExecuteResult> each: executeResults) {
-                for (ExecuteResult obj: each) {
+            for (List<ExecuteResult> each : executeResults) {
+                for (ExecuteResult obj : each) {
                     if (obj instanceof QueryResult) {
-                        QueryResultMetaData meta = ((QueryResult)obj).getMetaData();
+                        QueryResultMetaData meta = ((QueryResult) obj).getMetaData();
                         int columnCount = meta.getColumnCount();
                         List<QueryHeader> headers = new ArrayList<>(columnCount);
-
+                        
                         for (int i = 1; i <= columnCount; i++) {
                             headers.add(generateQueryHeader(meta, i));
                         }
-
+                        
                         if (!first) {
                             result.add(new QueryResponseHeader(headers));
-                            ((QueryResult)obj).close();
+                            ((QueryResult) obj).close();
                             first = true;
                         }
                     } else {
                         if (!first) {
-                            result.add(new UpdateResponseHeader(sqlStatementSample, Collections.singletonList(new UpdateResult(((UpdateResult) obj).getUpdateCount(), ((UpdateResult) obj).getLastInsertId()))));
+                            result.add(new UpdateResponseHeader(sqlStatementSample,
+                                    Collections.singletonList(new UpdateResult(((UpdateResult) obj).getUpdateCount(), ((UpdateResult) obj).getLastInsertId()))));
                             first = true;
                         }
                     }
                 }
             }
         }
-
+        
         return result;
     }
-
+    
     private static class BatchedJDBCExecutorCallback extends JDBCExecutorCallback<List<ExecuteResult>> {
         
         BatchedJDBCExecutorCallback(final Map<String, DatabaseType> storageTypes, final SQLStatement sqlStatement, final boolean isExceptionThrown) {
@@ -307,32 +337,32 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
         protected List<ExecuteResult> executeSQL(final String sql, final Statement statement, final ConnectionMode connectionMode, final DatabaseType storageType) throws SQLException {
             try {
                 boolean resultsAvailable = statement.execute(sql);
-
+                
                 List<ExecuteResult> list = new ArrayList<>();
-                while(true) {
+                while (true) {
                     if (resultsAvailable) {
                         ResultSet rs = statement.getResultSet();
-                        list.add(createQueryResult(rs,connectionMode,storageType));
+                        list.add(createQueryResult(rs, connectionMode, storageType));
                     } else {
                         int update_cnt = statement.getUpdateCount();
                         // TODO:
-                        if(update_cnt != -1) {
+                        if (update_cnt != -1) {
                             list.add(new UpdateResult(update_cnt, 0));
                         } else {
                             break;
                         }
                     }
-
+                    
                     resultsAvailable = statement.getMoreResults();
                 }
-
+                
                 return list;
             } catch (SQLException e) {
                 e.printStackTrace();
+                throw e;
             } finally {
                 statement.close();
             }
-            return null;
         }
         
         @SuppressWarnings("OptionalContainsCollection")
@@ -340,18 +370,18 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
         protected Optional<List<ExecuteResult>> getSaneResult(final SQLStatement sqlStatement, final SQLException ex) {
             return Optional.empty();
         }
-
+        
         private QueryResult createQueryResult(final ResultSet resultSet, final ConnectionMode connectionMode, final DatabaseType storageType) throws SQLException {
             return ConnectionMode.MEMORY_STRICTLY == connectionMode ? new JDBCStreamQueryResult(resultSet) : new JDBCMemoryQueryResult(resultSet, storageType);
         }
     }
-
+    
     private static class BatchedInsertJDBCExecutorCallback extends JDBCExecutorCallback<int[]> {
-
+        
         BatchedInsertJDBCExecutorCallback(final Map<String, DatabaseType> storageTypes, final SQLStatement sqlStatement, final boolean isExceptionThrown) {
             super(TypedSPILoader.getService(DatabaseType.class, "MySQL"), storageTypes, sqlStatement, isExceptionThrown);
         }
-
+        
         protected int[] executeSQL(final String sql, final Statement statement, final ConnectionMode connectionMode, final DatabaseType storageType) throws SQLException {
             try {
                 return statement.executeBatch();
@@ -359,7 +389,7 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                 statement.close();
             }
         }
-
+        
         @SuppressWarnings("OptionalContainsCollection")
         @Override
         protected Optional<int[]> getSaneResult(final SQLStatement sqlStatement, final SQLException ex) {

@@ -65,7 +65,7 @@ public final class TransactionXAHandler implements ProxyBackendHandler {
     public QueryResponseRow getRowData() throws SQLException {
         return this.tclStatement.getOp().equals("RECOVER") ? this.backendHandler.getRowData() : new QueryResponseRow(Collections.emptyList());
     }
-
+    
     @Override
     public List<ResponseHeader> execute() throws SQLException {
         switch (tclStatement.getOp()) {

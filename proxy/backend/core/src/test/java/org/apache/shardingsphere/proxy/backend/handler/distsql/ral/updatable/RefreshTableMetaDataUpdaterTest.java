@@ -36,6 +36,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.sql.SQLException;
 import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -89,8 +90,8 @@ class RefreshTableMetaDataUpdaterTest {
         when(ProxyContext.getInstance().getContextManager()).thenReturn(contextManager);
         when(ProxyContext.getInstance().databaseExists("foo_db")).thenReturn(true);
         UpdatableRALBackendHandler<?> backendHandler = new UpdatableRALBackendHandler<>(new RefreshTableMetaDataStatement(), mockConnectionSession("foo_db"));
-        ResponseHeader actual = backendHandler.execute();
-        assertThat(actual, instanceOf(UpdateResponseHeader.class));
+        List<ResponseHeader> actual = backendHandler.execute();
+        assertThat(actual.get(0), instanceOf(UpdateResponseHeader.class));
     }
     
     private static ConnectionSession mockConnectionSession(final String databaseName) {

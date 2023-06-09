@@ -32,6 +32,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.sql.SQLException;
+import java.util.List;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
@@ -54,8 +55,8 @@ class SetDistVariableUpdatableRALBackendHandlerTest {
     void assertSwitchTransactionTypeXA() throws SQLException {
         connectionSession.setCurrentDatabase(String.format(DATABASE_PATTERN, 0));
         UpdatableRALBackendHandler<?> handler = new UpdatableRALBackendHandler<>(new SetDistVariableStatement("transaction_type", "XA"), connectionSession);
-        ResponseHeader actual = handler.execute();
-        assertThat(actual, instanceOf(UpdateResponseHeader.class));
+        List<ResponseHeader> actual = handler.execute();
+        assertThat(actual.get(0), instanceOf(UpdateResponseHeader.class));
         assertThat(connectionSession.getTransactionStatus().getTransactionType(), is(TransactionType.XA));
     }
     
@@ -63,8 +64,8 @@ class SetDistVariableUpdatableRALBackendHandlerTest {
     void assertSwitchTransactionTypeBASE() throws SQLException {
         connectionSession.setCurrentDatabase(String.format(DATABASE_PATTERN, 0));
         UpdatableRALBackendHandler<?> handler = new UpdatableRALBackendHandler<>(new SetDistVariableStatement("transaction_type", "BASE"), connectionSession);
-        ResponseHeader actual = handler.execute();
-        assertThat(actual, instanceOf(UpdateResponseHeader.class));
+        List<ResponseHeader> actual = handler.execute();
+        assertThat(actual.get(0), instanceOf(UpdateResponseHeader.class));
         assertThat(connectionSession.getTransactionStatus().getTransactionType(), is(TransactionType.BASE));
     }
     
@@ -72,8 +73,8 @@ class SetDistVariableUpdatableRALBackendHandlerTest {
     void assertSwitchTransactionTypeLOCAL() throws SQLException {
         connectionSession.setCurrentDatabase(String.format(DATABASE_PATTERN, 0));
         UpdatableRALBackendHandler<?> handler = new UpdatableRALBackendHandler<>(new SetDistVariableStatement("transaction_type", "LOCAL"), connectionSession);
-        ResponseHeader actual = handler.execute();
-        assertThat(actual, instanceOf(UpdateResponseHeader.class));
+        List<ResponseHeader> actual = handler.execute();
+        assertThat(actual.get(0), instanceOf(UpdateResponseHeader.class));
         assertThat(connectionSession.getTransactionStatus().getTransactionType(), is(TransactionType.LOCAL));
     }
     
@@ -94,8 +95,8 @@ class SetDistVariableUpdatableRALBackendHandlerTest {
     void assertSetAgentPluginsEnabledTrue() throws SQLException {
         connectionSession.setCurrentDatabase(String.format(DATABASE_PATTERN, 0));
         UpdatableRALBackendHandler<?> handler = new UpdatableRALBackendHandler<>(new SetDistVariableStatement(VariableEnum.AGENT_PLUGINS_ENABLED.name(), Boolean.TRUE.toString()), null);
-        ResponseHeader actual = handler.execute();
-        assertThat(actual, instanceOf(UpdateResponseHeader.class));
+        List<ResponseHeader> actual = handler.execute();
+        assertThat(actual.get(0), instanceOf(UpdateResponseHeader.class));
         assertThat(SystemPropertyUtils.getSystemProperty(VariableEnum.AGENT_PLUGINS_ENABLED.name(), Boolean.FALSE.toString()), is(Boolean.TRUE.toString()));
     }
     
@@ -103,8 +104,8 @@ class SetDistVariableUpdatableRALBackendHandlerTest {
     void assertSetAgentPluginsEnabledFalse() throws SQLException {
         connectionSession.setCurrentDatabase(String.format(DATABASE_PATTERN, 0));
         UpdatableRALBackendHandler<?> handler = new UpdatableRALBackendHandler<>(new SetDistVariableStatement(VariableEnum.AGENT_PLUGINS_ENABLED.name(), Boolean.FALSE.toString()), null);
-        ResponseHeader actual = handler.execute();
-        assertThat(actual, instanceOf(UpdateResponseHeader.class));
+        List<ResponseHeader> actual = handler.execute();
+        assertThat(actual.get(0), instanceOf(UpdateResponseHeader.class));
         assertThat(SystemPropertyUtils.getSystemProperty(VariableEnum.AGENT_PLUGINS_ENABLED.name(), Boolean.FALSE.toString()), is(Boolean.FALSE.toString()));
     }
     
@@ -112,8 +113,8 @@ class SetDistVariableUpdatableRALBackendHandlerTest {
     void assertSetAgentPluginsEnabledFalseWithUnknownValue() throws SQLException {
         connectionSession.setCurrentDatabase(String.format(DATABASE_PATTERN, 0));
         UpdatableRALBackendHandler<?> handler = new UpdatableRALBackendHandler<>(new SetDistVariableStatement(VariableEnum.AGENT_PLUGINS_ENABLED.name(), "xxx"), connectionSession);
-        ResponseHeader actual = handler.execute();
-        assertThat(actual, instanceOf(UpdateResponseHeader.class));
+        List<ResponseHeader> actual = handler.execute();
+        assertThat(actual.get(0), instanceOf(UpdateResponseHeader.class));
         assertThat(SystemPropertyUtils.getSystemProperty(VariableEnum.AGENT_PLUGINS_ENABLED.name(), Boolean.FALSE.toString()), is(Boolean.FALSE.toString()));
     }
 }

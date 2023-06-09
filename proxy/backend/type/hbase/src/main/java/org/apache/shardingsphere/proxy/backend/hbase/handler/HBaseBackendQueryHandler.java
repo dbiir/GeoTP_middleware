@@ -29,6 +29,7 @@ import org.apache.shardingsphere.proxy.backend.response.header.query.QueryRespon
 import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
 import java.sql.Types;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -44,12 +45,12 @@ public final class HBaseBackendQueryHandler implements HBaseBackendHandler {
     private final HBaseQueryResultSet resultSet;
     
     @Override
-    public ResponseHeader execute() {
+    public List<ResponseHeader> execute() {
         SQLStatementContext<?> sqlStatementContext = SQLStatementContextFactory.newInstance(null, sqlStatement, "");
         resultSet.init(sqlStatementContext);
         List<QueryHeader> queryHeaders = resultSet.getColumnNames().stream().map(each -> new QueryHeader("", "", each, each, Types.CHAR, "CHAR", 255, 0, false, false, false, false))
                 .collect(Collectors.toList());
-        return new QueryResponseHeader(queryHeaders);
+        return Collections.singletonList(new QueryResponseHeader(queryHeaders));
     }
     
     @Override

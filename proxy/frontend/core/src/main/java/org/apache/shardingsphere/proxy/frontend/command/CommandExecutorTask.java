@@ -111,7 +111,7 @@ public final class CommandExecutorTask implements Runnable {
         CommandPacket commandPacket = commandExecuteEngine.getCommandPacket(payload, type, connectionSession);
         CommandExecutor commandExecutor = commandExecuteEngine.getCommandExecutor(type, commandPacket, connectionSession);
         // TODO: Add tables to
-        if(commandPacket instanceof MySQLComFieldListPacket) {
+        if (commandPacket instanceof MySQLComFieldListPacket) {
             LockWait.getInstance().registerTable(((MySQLComFieldListPacket) commandPacket).getTable());
         }
         return doExecuteCommand(context, commandExecuteEngine, commandExecutor);

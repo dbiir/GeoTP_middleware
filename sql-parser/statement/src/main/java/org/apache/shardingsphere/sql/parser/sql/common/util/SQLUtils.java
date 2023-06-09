@@ -257,7 +257,7 @@ public final class SQLUtils {
         }
         return result;
     }
-
+    
     /**
      * Split sql into multiple sqls
      *
@@ -267,11 +267,11 @@ public final class SQLUtils {
     public static List<String> splitMultiSQL(final String sql) {
         List<String> result = new LinkedList<>();
         String[] strings = sql.split(";");
-
-        for (String each: strings) {
+        
+        for (String each : strings) {
             result.add(trimComment(each));
         }
-
+        
         return result;
     }
 }

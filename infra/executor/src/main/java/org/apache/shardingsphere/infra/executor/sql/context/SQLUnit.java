@@ -46,13 +46,13 @@ public final class SQLUnit {
         this.parameters = params;
         this.tableRouteMappers = Collections.emptyList();
     }
-
+    
     public SQLUnit(String sql, List<Object> params, List<RouteMapper> routers) {
         this.sql = sql;
         this.parameters = params;
         this.tableRouteMappers = routers;
     }
-
+    
     public void CombineSQLUnit(SQLUnit other) {
         sql = sql + ";" + other.getSql();
         parameters.addAll(other.getParameters());

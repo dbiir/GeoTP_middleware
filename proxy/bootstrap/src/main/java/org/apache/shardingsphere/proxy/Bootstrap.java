@@ -29,6 +29,7 @@ import org.apache.shardingsphere.proxy.backend.config.yaml.YamlProxyDatabaseConf
 import org.apache.shardingsphere.proxy.backend.statistics.StatFlusher;
 import org.apache.shardingsphere.proxy.backend.statistics.monitor.LockWait;
 import org.apache.shardingsphere.proxy.backend.statistics.network.Latency;
+import org.apache.shardingsphere.proxy.backend.statistics.network.LatencyCollector;
 import org.apache.shardingsphere.proxy.frontend.CDCServer;
 import org.apache.shardingsphere.proxy.frontend.ShardingSphereProxy;
 import org.apache.shardingsphere.proxy.initializer.BootstrapInitializer;
@@ -62,18 +63,18 @@ public final class Bootstrap {
                 .ifPresent(cdcPort -> new CDCServer(addresses, cdcPort).start());
         // initial state of harp
         initialStateOfHarp(yamlConfig);
-
+        
         ShardingSphereProxy shardingSphereProxy = new ShardingSphereProxy();
         bootstrapArgs.getSocketPath().ifPresent(shardingSphereProxy::start);
         shardingSphereProxy.start(port, addresses);
     }
-
+    
     private static void initialStateOfHarp(YamlProxyConfiguration yamlConfig) {
-        for (Map.Entry<String, YamlProxyDatabaseConfiguration> each: yamlConfig.getDatabaseConfigurations().entrySet()) {
+        for (Map.Entry<String, YamlProxyDatabaseConfiguration> each : yamlConfig.getDatabaseConfigurations().entrySet()) {
             if (each.getValue() != null) {
-                for (Map.Entry<String, YamlProxyDataSourceConfiguration> ds: each.getValue().getDataSources().entrySet()) {
+                for (Map.Entry<String, YamlProxyDataSourceConfiguration> ds : each.getValue().getDataSources().entrySet()) {
                     Latency.getInstance().AddDataSource(ds.getKey());
-                    String regEx="((2[0-4]\\d|25[0-5]|[01]?\\d\\d?)\\.){3}(2[0-4]\\d|25[0-5]|[01]?\\d\\d?)";
+                    String regEx = "((2[0-4]\\d|25[0-5]|[01]?\\d\\d?)\\.){3}(2[0-4]\\d|25[0-5]|[01]?\\d\\d?)";
                     Pattern p = Pattern.compile(regEx);
                     Matcher m = p.matcher(ds.getValue().getUrl());
                     if (m.find()) {
@@ -83,21 +84,26 @@ public final class Bootstrap {
                 }
             }
         }
-
+        
         if (LockWait.getInstance().needStatistic()) {
             Thread flushThread = new Thread(new StatFlusher());
             flushThread.start();
         }
-    }
 
+        if (Latency.getInstance().NeedDelay()) {
+            Thread pingThread = new Thread(new LatencyCollector());
+            pingThread.start();
+        }
+    }
+    
     private static String[] preProcessingArgs(final String[] args) {
         List<String> result = new LinkedList<>();
-        for (String each: args) {
+        for (String each : args) {
             if (each.contains("--stat")) {
                 LockWait.getInstance().setEnableStatistical(each.contains("true"));
             } else if (each.contains("--alg")) {
                 String[] split = each.split("=");
-                Latency.getInstance().SetAlgorithm(split[split.length-1]);
+                Latency.getInstance().SetAlgorithm(split[split.length - 1]);
             } else {
                 result.add(each);
             }

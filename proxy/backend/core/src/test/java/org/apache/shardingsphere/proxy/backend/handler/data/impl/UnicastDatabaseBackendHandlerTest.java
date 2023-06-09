@@ -48,10 +48,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 import java.sql.SQLException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
@@ -86,12 +83,12 @@ class UnicastDatabaseBackendHandlerTest {
     void setUp() throws SQLException {
         when(connectionSession.getDefaultDatabaseName()).thenReturn(String.format(DATABASE_PATTERN, 0));
         when(connectionSession.getBackendConnection()).thenReturn(mock(BackendConnection.class));
-        mockDatabaseConnector(new UpdateResponseHeader(mock(SQLStatement.class)));
+        mockDatabaseConnector(Collections.singletonList(new UpdateResponseHeader(mock(SQLStatement.class))));
         unicastDatabaseBackendHandler = new UnicastDatabaseBackendHandler(new QueryContext(mock(SQLStatementContext.class), EXECUTE_SQL, Collections.emptyList()), connectionSession);
         setBackendHandlerFactory(unicastDatabaseBackendHandler);
     }
     
-    private void mockDatabaseConnector(final ResponseHeader responseHeader) throws SQLException {
+    private void mockDatabaseConnector(final List<ResponseHeader> responseHeader) throws SQLException {
         when(databaseConnector.execute()).thenReturn(responseHeader);
         when(databaseConnectorFactory.newInstance(any(QueryContext.class), any(BackendConnection.class), eq(false))).thenReturn(databaseConnector);
     }
@@ -108,7 +105,7 @@ class UnicastDatabaseBackendHandlerTest {
         when(ProxyContext.getInstance().getContextManager()).thenReturn(contextManager);
         ShardingSphereDatabase database = createDatabases().get("db_0");
         when(ProxyContext.getInstance().getDatabase("db_0")).thenReturn(database);
-        ResponseHeader actual = unicastDatabaseBackendHandler.execute();
+        List<ResponseHeader> actual = unicastDatabaseBackendHandler.execute();
         assertThat(actual, instanceOf(UpdateResponseHeader.class));
     }
     

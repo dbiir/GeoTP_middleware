@@ -39,6 +39,7 @@ import org.mockito.quality.Strictness;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -105,26 +106,26 @@ class DropDatabaseBackendHandlerTest {
     @Test
     void assertExecuteDropWithoutCurrentDatabase() {
         when(sqlStatement.getDatabaseName()).thenReturn("foo_db");
-        ResponseHeader responseHeader = handler.execute();
+        List<ResponseHeader> responseHeader = handler.execute();
         verify(connectionSession, times(0)).setCurrentDatabase(null);
-        assertThat(responseHeader, instanceOf(UpdateResponseHeader.class));
+        assertThat(responseHeader.get(0), instanceOf(UpdateResponseHeader.class));
     }
     
     @Test
     void assertExecuteDropCurrentDatabase() {
         when(connectionSession.getDatabaseName()).thenReturn("foo_db");
         when(sqlStatement.getDatabaseName()).thenReturn("foo_db");
-        ResponseHeader responseHeader = handler.execute();
+        List<ResponseHeader> responseHeader = handler.execute();
         verify(connectionSession).setCurrentDatabase(null);
-        assertThat(responseHeader, instanceOf(UpdateResponseHeader.class));
+        assertThat(responseHeader.get(0), instanceOf(UpdateResponseHeader.class));
     }
     
     @Test
     void assertExecuteDropOtherDatabase() {
         when(connectionSession.getDatabaseName()).thenReturn("foo_db");
         when(sqlStatement.getDatabaseName()).thenReturn("bar_db");
-        ResponseHeader responseHeader = handler.execute();
+        List<ResponseHeader> responseHeader = handler.execute();
         verify(connectionSession, times(0)).setCurrentDatabase(null);
-        assertThat(responseHeader, instanceOf(UpdateResponseHeader.class));
+        assertThat(responseHeader.get(0), instanceOf(UpdateResponseHeader.class));
     }
 }

@@ -41,7 +41,7 @@ class HBaseBackendUpdateHandlerTest {
         when(updater.executeUpdate(any())).thenReturn(Collections.singletonList(new UpdateResult(1, 0)));
         SQLStatement sqlStatement = HBaseSupportedSQLStatement.parseSQLStatement(HBaseSupportedSQLStatement.getDeleteStatement());
         HBaseBackendUpdateHandler handler = new HBaseBackendUpdateHandler(sqlStatement, updater);
-        UpdateResponseHeader result = handler.execute();
+        UpdateResponseHeader result = (UpdateResponseHeader) handler.execute().get(0);
         assertUpdateResponseHeader(sqlStatement, result);
     }
     
@@ -51,7 +51,7 @@ class HBaseBackendUpdateHandlerTest {
         when(updater.executeUpdate(any())).thenReturn(Collections.singletonList(new UpdateResult(1, 0)));
         SQLStatement sqlStatement = HBaseSupportedSQLStatement.parseSQLStatement(HBaseSupportedSQLStatement.getUpdateStatement());
         HBaseBackendUpdateHandler handler = new HBaseBackendUpdateHandler(sqlStatement, updater);
-        UpdateResponseHeader result = handler.execute();
+        UpdateResponseHeader result = (UpdateResponseHeader) handler.execute().get(0);
         assertUpdateResponseHeader(sqlStatement, result);
     }
     
@@ -61,7 +61,7 @@ class HBaseBackendUpdateHandlerTest {
         when(updater.executeUpdate(any())).thenReturn(Collections.singletonList(new UpdateResult(1, 0)));
         SQLStatement sqlStatement = HBaseSupportedSQLStatement.parseSQLStatement(HBaseSupportedSQLStatement.getFlushTablesStatement());
         HBaseBackendUpdateHandler handler = new HBaseBackendUpdateHandler(sqlStatement, updater);
-        UpdateResponseHeader result = handler.execute();
+        UpdateResponseHeader result = (UpdateResponseHeader) handler.execute().get(0);
         assertUpdateResponseHeader(sqlStatement, result);
     }
     

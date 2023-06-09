@@ -44,10 +44,7 @@ import org.mockito.internal.configuration.plugins.Plugins;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedList;
-import java.util.Properties;
+import java.util.*;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -81,8 +78,8 @@ class RegisterStorageUnitBackendHandlerTest {
         when(contextManager.getMetaDataContexts()).thenReturn(mock(MetaDataContexts.class, RETURNS_DEEP_STUBS));
         when(ProxyContext.getInstance().getContextManager()).thenReturn(contextManager);
         when(ProxyContext.getInstance().getDatabase("foo_db")).thenReturn(database);
-        ResponseHeader responseHeader = handler.execute("foo_db", createRegisterStorageUnitStatement());
-        assertThat(responseHeader, instanceOf(UpdateResponseHeader.class));
+        List<ResponseHeader> responseHeader = handler.execute("foo_db", createRegisterStorageUnitStatement());
+        assertThat(responseHeader.get(0), instanceOf(UpdateResponseHeader.class));
     }
     
     @Test

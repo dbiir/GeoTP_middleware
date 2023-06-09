@@ -57,7 +57,7 @@ public abstract class JDBCExecutorCallback<T> implements ExecutorCallback<JDBCEx
     private final SQLStatement sqlStatement;
     
     private final boolean isExceptionThrown;
-
+    
     @Override
     public final Collection<T> execute(final Collection<JDBCExecutionUnit> executionUnits, final boolean isTrunkThread) throws SQLException {
         // TODO It is better to judge whether need sane result before execute, can avoid exception thrown
@@ -86,6 +86,8 @@ public abstract class JDBCExecutorCallback<T> implements ExecutorCallback<JDBCEx
             // delay execution
             if (jdbcExecutionUnit.getExecutionUnit().GetDelayTime() > 0) {
                 Thread.sleep(jdbcExecutionUnit.getExecutionUnit().GetDelayTime());
+//                Thread.sleep(100);
+                System.out.println("delay: " + jdbcExecutionUnit.getExecutionUnit().GetDelayTime() + "ms");
             }
             SQLUnit sqlUnit = jdbcExecutionUnit.getExecutionUnit().getSqlUnit();
             sqlExecutionHook.start(jdbcExecutionUnit.getExecutionUnit().getDataSourceName(), sqlUnit.getSql(), sqlUnit.getParameters(), dataSourceMetaData, isTrunkThread);

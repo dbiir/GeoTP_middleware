@@ -140,7 +140,7 @@ class PortalTest {
         QueryHeader queryHeader = new QueryHeader("schema", "table", "columnLabel", "columnName", Types.VARCHAR, "columnTypeName", 0, 0, false, false, false, false);
         QueryHeader intColumnQueryHeader = new QueryHeader("schema", "table", "columnLabel", "columnName", Types.INTEGER, "columnTypeName", 0, 0, false, false, false, false);
         when(responseHeader.getQueryHeaders()).thenReturn(Arrays.asList(queryHeader, intColumnQueryHeader));
-        when(proxyBackendHandler.execute()).thenReturn(responseHeader);
+        when(proxyBackendHandler.execute()).thenReturn(Collections.singletonList(responseHeader));
         when(proxyBackendHandler.next()).thenReturn(true, true, false);
         when(proxyBackendHandler.getRowData()).thenReturn(new QueryResponseRow(Collections.singletonList(new QueryResponseCell(Types.INTEGER, 0))),
                 new QueryResponseRow(Collections.singletonList(new QueryResponseCell(Types.INTEGER, 1))));
@@ -173,7 +173,7 @@ class PortalTest {
         QueryResponseHeader responseHeader = mock(QueryResponseHeader.class);
         QueryHeader queryHeader = new QueryHeader("schema", "table", "columnLabel", "columnName", Types.INTEGER, "columnTypeName", 0, 0, false, false, false, false);
         when(responseHeader.getQueryHeaders()).thenReturn(Collections.singletonList(queryHeader));
-        when(proxyBackendHandler.execute()).thenReturn(responseHeader);
+        when(proxyBackendHandler.execute()).thenReturn(Collections.singletonList(responseHeader));
         when(proxyBackendHandler.next()).thenReturn(true, true);
         when(proxyBackendHandler.getRowData()).thenReturn(
                 new QueryResponseRow(Collections.singletonList(new QueryResponseCell(Types.INTEGER, 0))),
@@ -195,7 +195,7 @@ class PortalTest {
     
     @Test
     void assertExecuteUpdate() throws SQLException {
-        when(proxyBackendHandler.execute()).thenReturn(mock(UpdateResponseHeader.class));
+        when(proxyBackendHandler.execute()).thenReturn(Collections.singletonList(mock(UpdateResponseHeader.class)));
         when(proxyBackendHandler.next()).thenReturn(false);
         InsertStatementContext insertStatementContext = mock(InsertStatementContext.class, RETURNS_DEEP_STUBS);
         when(insertStatementContext.getSqlStatement()).thenReturn(new PostgreSQLInsertStatement());
@@ -209,7 +209,7 @@ class PortalTest {
     
     @Test
     void assertExecuteEmptyStatement() throws SQLException {
-        when(proxyBackendHandler.execute()).thenReturn(mock(UpdateResponseHeader.class));
+        when(proxyBackendHandler.execute()).thenReturn(Collections.singletonList(mock(UpdateResponseHeader.class)));
         when(proxyBackendHandler.next()).thenReturn(false);
         PostgreSQLServerPreparedStatement preparedStatement = new PostgreSQLServerPreparedStatement("", new CommonSQLStatementContext<>(new PostgreSQLEmptyStatement()), Collections.emptyList());
         Portal portal = new Portal("", preparedStatement, Collections.emptyList(), Collections.emptyList(), backendConnection);
@@ -221,7 +221,7 @@ class PortalTest {
     
     @Test
     void assertExecuteSetStatement() throws SQLException {
-        when(proxyBackendHandler.execute()).thenReturn(mock(UpdateResponseHeader.class));
+        when(proxyBackendHandler.execute()).thenReturn(Collections.singletonList(mock(UpdateResponseHeader.class)));
         when(proxyBackendHandler.next()).thenReturn(false);
         String sql = "set client_encoding = utf8";
         PostgreSQLSetStatement setStatement = new PostgreSQLSetStatement();

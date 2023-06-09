@@ -26,6 +26,7 @@ import org.apache.shardingsphere.proxy.backend.response.header.query.QueryRespon
 import java.sql.Types;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -49,10 +50,10 @@ public final class ErrorHintCommentQueryHandler implements HBaseBackendHandler {
     }
     
     @Override
-    public ResponseHeader execute() {
+    public List<ResponseHeader> execute() {
         List<QueryHeader> queryHeaders = getColumnNames().stream().map(each -> new QueryHeader("", "", each, each, Types.CHAR, "CHAR", 255, 0, false, false, false, false)).collect(
                 Collectors.toList());
-        return new QueryResponseHeader(queryHeaders);
+        return Collections.singletonList(new QueryResponseHeader(queryHeaders));
     }
     
     private Collection<String> getColumnNames() {

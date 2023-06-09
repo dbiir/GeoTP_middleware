@@ -51,6 +51,7 @@ import org.mockito.quality.Strictness;
 
 import java.sql.SQLException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
@@ -101,8 +102,8 @@ class DatabaseOperateBackendHandlerFactoryTest {
     private void assertExecuteCreateDatabaseContext(final CreateDatabaseStatement sqlStatement) throws SQLException {
         sqlStatement.setDatabaseName("new_db");
         setGovernanceMetaDataContexts(true);
-        ResponseHeader response = DatabaseOperateBackendHandlerFactory.newInstance(sqlStatement, connectionSession).execute();
-        assertThat(response, instanceOf(UpdateResponseHeader.class));
+        List<ResponseHeader> response = DatabaseOperateBackendHandlerFactory.newInstance(sqlStatement, connectionSession).execute();
+        assertThat(response.get(0), instanceOf(UpdateResponseHeader.class));
     }
     
     @Test
@@ -118,8 +119,8 @@ class DatabaseOperateBackendHandlerFactoryTest {
     private void assertExecuteDropDatabaseContext(final DropDatabaseStatement sqlStatement) throws SQLException {
         sqlStatement.setDatabaseName("foo_db");
         setGovernanceMetaDataContexts(true);
-        ResponseHeader response = DatabaseOperateBackendHandlerFactory.newInstance(sqlStatement, connectionSession).execute();
-        assertThat(response, instanceOf(UpdateResponseHeader.class));
+        List<ResponseHeader> response = DatabaseOperateBackendHandlerFactory.newInstance(sqlStatement, connectionSession).execute();
+        assertThat(response.get(0), instanceOf(UpdateResponseHeader.class));
     }
     
     @Test

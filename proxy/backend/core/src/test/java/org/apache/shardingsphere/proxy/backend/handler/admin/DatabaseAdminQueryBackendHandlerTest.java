@@ -30,6 +30,7 @@ import org.apache.shardingsphere.mode.metadata.MetaDataContexts;
 import org.apache.shardingsphere.metadata.persist.MetaDataPersistService;
 import org.apache.shardingsphere.proxy.backend.context.ProxyContext;
 import org.apache.shardingsphere.proxy.backend.handler.admin.executor.DatabaseAdminQueryExecutor;
+import org.apache.shardingsphere.proxy.backend.response.header.ResponseHeader;
 import org.apache.shardingsphere.proxy.backend.response.header.query.QueryHeaderBuilder;
 import org.apache.shardingsphere.proxy.backend.response.header.query.QueryResponseHeader;
 import org.apache.shardingsphere.proxy.backend.session.ConnectionSession;
@@ -42,6 +43,7 @@ import org.mockito.MockedStatic;
 
 import java.sql.SQLException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Properties;
 
 import static org.hamcrest.CoreMatchers.is;
@@ -75,7 +77,7 @@ class DatabaseAdminQueryBackendHandlerTest {
         when(ProxyContext.getInstance().getContextManager()).thenReturn(contextManager);
         try (MockedStatic<TypedSPILoader> typedSPILoader = mockStatic(TypedSPILoader.class)) {
             typedSPILoader.when(() -> TypedSPILoader.getService(QueryHeaderBuilder.class, null)).thenReturn(mock(QueryHeaderBuilder.class));
-            assertThat(((QueryResponseHeader) handler.execute()).getQueryHeaders().size(), is(1));
+            assertThat(((QueryResponseHeader) handler.execute().get(0)).getQueryHeaders().size(), is(1));
         }
     }
     
