@@ -44,10 +44,11 @@ public final class Latency {
     }
     
     public void AddDataSource(String src) {
+        System.out.println("Add Source " + src);
         latencies.put(src, new double[windowSize + 1]);
         // TODO: hard code
         if (src.contains("ds_1")) {
-            latencies.get(src)[windowSize] = 45;
+            latencies.get(src)[windowSize] = 47;
         } else {
             latencies.get(src)[windowSize] = 0;
         }
@@ -87,6 +88,14 @@ public final class Latency {
         } else {
             return -1.0;
         }
+    }
+
+    public double getLongestLatency() {
+        double longest = 0.0;
+        for (String each: latencies.keySet()) {
+            longest = Math.max(longest, getStableLatency(each));
+        }
+        return longest;
     }
     
     public void SetAlgorithm(String alg) {

@@ -23,13 +23,22 @@ import lombok.Setter;
 @Getter
 @Setter
 public final class LockMetaData {
+    private static final int countThreshold = 1024;
+    private static final double alpha = 0.75;
     
-    private double alpha = 0.75;
     private int readCount;
     private int writeCount;
     private double readLatency;
     private double writeLatency;
     private long startTime;
+
+    // Probabilistic Lock and Feedback
+    // TODO: use 8 Byte to store following attributes
+    private int count;
+    private int successCount;
+    private int processing;
+    private int latency;
+    private double networkThreshold;
     
     public LockMetaData() {
         readCount = 0;
@@ -37,6 +46,51 @@ public final class LockMetaData {
         readLatency = 0;
         writeLatency = 0;
         startTime = System.nanoTime();
+        networkThreshold = 0;
+    }
+
+    public LockMetaData(double networkLatency) {
+        readCount = 0;
+        writeCount = 0;
+        readLatency = 0;
+        writeLatency = 0;
+        startTime = System.nanoTime();
+        networkThreshold = networkLatency * 2; // hyper-parameter, 1RTT
+    }
+
+    public synchronized void incCount() {
+        count++;
+    }
+
+    public synchronized void incSuccessCount() {
+        successCount++;
+    }
+
+    /*
+     * TODO: change to atomic integer
+     */
+    public synchronized void incProcessing() {
+        processing++;
+    }
+
+    public synchronized void decProcessing() {
+        processing--;
+    }
+
+    public synchronized double blockProbability() {
+        if (count > countThreshold) {
+            successCount /= 2;
+            count /= 2;
+        }
+        return 1 - Math.pow(1 - (successCount * 1.0 / (count + 1)), processing);
+    }
+
+    public synchronized void updateLatency(double newLatency) {
+        latency = (int) (latency * alpha + newLatency * (1 - alpha));
+    }
+
+    public int getLatency() {
+        return latency;
     }
     
     public synchronized void updateReadLatency(double newLatency) {

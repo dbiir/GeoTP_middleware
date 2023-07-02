@@ -22,6 +22,10 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.ToString;
 
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+
 /**
  * Execution unit.
  */
@@ -36,6 +40,57 @@ public final class ExecutionUnit {
     private final SQLUnit sqlUnit;
     
     private long delayTime;
+
+    private int localExecuteLatency; // TODO: millisecond -> microsecond
+
+    private double abortProbability;
+
+    private int networkLatency;
+
+    private int realExecuteLatency;
+
+    private boolean isHarp = false;
+
+    private final HashMap<String, List<Integer>> keys = new HashMap<>();
+
+    public void addKeys(String tableName, Integer key) {
+        keys.computeIfAbsent(tableName, unused -> new LinkedList<>()).add(key);
+    }
+
+    public HashMap<String, List<Integer>> getKeys() {
+        return keys;
+    }
+
+    public List<Integer> findKeysByTableName(String tableName) {
+        return keys.get(tableName);
+    }
+
+    public void updateProbability(double p){
+        abortProbability = 1 - (1 - abortProbability) * (1 - p);
+    }
+
+    public double getAbortProbability() {
+        return abortProbability;
+    }
+
+    /*
+     * use for analyse delay time
+     */
+    public void updateLocalExecuteLatency(int latency) {
+        localExecuteLatency += latency;
+    }
+
+    public void setNetworkLatency(int latency) {
+        networkLatency = latency;
+    }
+
+    public void setRealExecuteLatency(int latency) {
+        this.realExecuteLatency = latency;
+    }
+
+    public void setHarp(boolean isHarp) {
+        this.isHarp = isHarp;
+    }
     
     public long GetDelayTime() {
         return delayTime;

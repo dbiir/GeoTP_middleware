@@ -21,6 +21,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.shardingsphere.infra.binder.QueryContext;
 import org.apache.shardingsphere.infra.binder.SQLStatementContextFactory;
 import org.apache.shardingsphere.infra.binder.statement.SQLStatementContext;
+import org.apache.shardingsphere.infra.binder.statement.dml.SelectStatementContext;
+import org.apache.shardingsphere.infra.binder.statement.dml.UpdateStatementContext;
 import org.apache.shardingsphere.infra.config.props.ConfigurationPropertyKey;
 import org.apache.shardingsphere.infra.context.kernel.KernelProcessor;
 import org.apache.shardingsphere.infra.database.type.DatabaseType;
@@ -60,6 +62,8 @@ import org.apache.shardingsphere.proxy.backend.response.header.query.QueryHeader
 import org.apache.shardingsphere.proxy.backend.response.header.query.QueryResponseHeader;
 import org.apache.shardingsphere.proxy.backend.response.header.update.UpdateResponseHeader;
 import org.apache.shardingsphere.proxy.backend.session.ConnectionSession;
+import org.apache.shardingsphere.proxy.backend.statistics.monitor.LocalLockTable;
+import org.apache.shardingsphere.proxy.backend.statistics.monitor.LockMetaData;
 import org.apache.shardingsphere.proxy.backend.statistics.network.Latency;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.dml.UpdateStatement;
@@ -97,7 +101,9 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
     private final Map<String, List<ExecutionUnit>> dataSourcesToExecutionUnits = new HashMap<>();
     
     private final Map<String, List<Integer>> dataSourcesToCommandId = new HashMap<>();
-    
+
+    private final Map<String, List<QueryContext>> dataSourcesToQueryContext = new HashMap<>();
+
     private ExecutionContext anyExecutionContext;
     
     private boolean isBatchInsert;
@@ -138,13 +144,17 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
         Map<String, List<ExecutionUnit>> groupExecuteUnits = new HashMap<>();
         for (int i = 0; i < sqlStatements.size(); i++) {
             ExecutionContext executionContext = createExecutionContext(createQueryContext(sqls.get(i), sqlStatements.get(i)));
+            String dataSourceName = "";
             if (null == anyExecutionContext) {
                 anyExecutionContext = executionContext;
             }
             for (ExecutionUnit eachExecutionUnit : executionContext.getExecutionUnits()) {
-                groupExecuteUnits.computeIfAbsent(eachExecutionUnit.getDataSourceName(), unused -> new LinkedList<>()).add(eachExecutionUnit);
-                dataSourcesToCommandId.computeIfAbsent(eachExecutionUnit.getDataSourceName(), unused -> new LinkedList<>()).add(i);
+                dataSourceName = eachExecutionUnit.getDataSourceName();
+                groupExecuteUnits.computeIfAbsent(dataSourceName, unused -> new LinkedList<>()).add(eachExecutionUnit);
+                dataSourcesToCommandId.computeIfAbsent(dataSourceName, unused -> new LinkedList<>()).add(i);
             }
+
+            dataSourcesToQueryContext.computeIfAbsent(dataSourceName, unused -> new LinkedList<>()).add(executionContext.getQueryContext());
         }
         
         for (List<ExecutionUnit> each : groupExecuteUnits.values()) {
@@ -220,32 +230,93 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
         }
 
         if (Latency.getInstance().NeedDelay()) {
-            analysisLatency((List<ExecutionGroup<JDBCExecutionUnit>>) executionGroupContext.getInputGroups());
+            boolean needPreAbort = analysisLatency((List<ExecutionGroup<JDBCExecutionUnit>>) executionGroupContext.getInputGroups());
+            if (!needPreAbort) {
+                throw new SQLException("this transaction is most likely to timeout, pre-abort in harp");
+            }
         }
 
         return executeMultiStatements(executionGroupContext);
     }
 
-    private void analysisLatency(List<ExecutionGroup<JDBCExecutionUnit>> groupUnits) {
+    private boolean analysisLatency(List<ExecutionGroup<JDBCExecutionUnit>> groupUnits) {
         // harp
         if (groupUnits.size() <= 1) {
-            return;
+            return true;
         }
 
-        long maxLatency = 0;
-
-        for (ExecutionGroup<JDBCExecutionUnit> each: groupUnits) {
-            // TODO: Need amendment !!!
-            long srcLat = (long) Latency.getInstance().GetLatency(each.getInputs().get(0).getExecutionUnit().getDataSourceName());
-            maxLatency = Math.max(maxLatency, srcLat);
-        }
+        int maxLatency = 0;
+        double p = 0; // abort probability
 
         for (ExecutionGroup<JDBCExecutionUnit> each: groupUnits) {
-            long srcLat = (long) Latency.getInstance().GetLatency(each.getInputs().get(0).getExecutionUnit().getDataSourceName());
-            each.getInputs().get(0).getExecutionUnit().SetDelayTime(maxLatency - srcLat);
+            ExecutionUnit executionUnit = each.getInputs().get(0).getExecutionUnit();
+            String dataSourceName = executionUnit.getDataSourceName();
+
+            int srcLat = (int) Latency.getInstance().GetLatency(dataSourceName);
+            executionUnit.updateLocalExecuteLatency(srcLat);
+            executionUnit.setNetworkLatency(srcLat);
+            executionUnit.setHarp(true);
+
+            for (QueryContext queryContext: dataSourcesToQueryContext.get(dataSourceName)) {
+                String tableName = getTableNameFromSQLStatementContext(queryContext.getSqlStatementContext());
+                int key = getKeyFromSQLStatementContext(queryContext.getSqlStatementContext());
+                executionUnit.updateProbability(LocalLockTable.getInstance().getLockMetaData(tableName, key).blockProbability());
+                executionUnit.updateLocalExecuteLatency(LocalLockTable.getInstance().getLockMetaData(tableName, key).getLatency());
+                executionUnit.addKeys(tableName, key);
+            }
+
+            // pre-abort
+            if (Math.random() < executionUnit.getAbortProbability()) {
+                return false;
+            }
+
+            maxLatency = Math.max(maxLatency, executionUnit.getLocalExecuteLatency());
         }
+
+        for (ExecutionGroup<JDBCExecutionUnit> each: groupUnits) {
+            ExecutionUnit executionUnit = each.getInputs().get(0).getExecutionUnit();
+            String dataSourceName = executionUnit.getDataSourceName();
+
+            for (QueryContext queryContext: dataSourcesToQueryContext.get(dataSourceName)) {
+                String tableName = getTableNameFromSQLStatementContext(queryContext.getSqlStatementContext());
+                int key = getKeyFromSQLStatementContext(queryContext.getSqlStatementContext());
+                LocalLockTable.getInstance().getLockMetaData(tableName, key).incProcessing();
+            }
+        }
+
+        for (ExecutionGroup<JDBCExecutionUnit> each: groupUnits) {
+            ExecutionUnit executionUnit = each.getInputs().get(0).getExecutionUnit();
+            long srcLat = executionUnit.getLocalExecuteLatency();
+            executionUnit.SetDelayTime(maxLatency - srcLat);
+        }
+
+        return true;
     }
-    
+
+    private String getTableNameFromSQLStatementContext(SQLStatementContext sqlStatementContext) {
+        String tableName = "";
+        if (sqlStatementContext instanceof SelectStatementContext) {
+            SelectStatementContext selectStatementContext = (SelectStatementContext) sqlStatementContext;
+            tableName = selectStatementContext.getTableName().get(0);
+        } else if (sqlStatementContext instanceof UpdateStatementContext) {
+            UpdateStatementContext updateStatementContext = (UpdateStatementContext) sqlStatementContext;
+            tableName = updateStatementContext.getTableName().get(0);
+        }
+        return tableName;
+    }
+
+    private int getKeyFromSQLStatementContext(SQLStatementContext sqlStatementContext) {
+        int key = -1;
+        if (sqlStatementContext instanceof SelectStatementContext) {
+            SelectStatementContext selectStatementContext = (SelectStatementContext) sqlStatementContext;
+            key = selectStatementContext.getKey().get(0);
+        } else if (sqlStatementContext instanceof UpdateStatementContext) {
+            UpdateStatementContext updateStatementContext = (UpdateStatementContext) sqlStatementContext;
+            key = updateStatementContext.getKey().get(0);
+        }
+        return key;
+    }
+
     private Collection<ExecutionUnit> samplingExecutionUnit() {
         Collection<ExecutionUnit> result = new LinkedList<>();
         for (List<ExecutionUnit> each : dataSourcesToExecutionUnits.values()) {
@@ -294,37 +365,77 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
             result.add(new UpdateResponseHeader(sqlStatementSample, Collections.singletonList(new UpdateResult(updated, 0L))));
         } else {
             JDBCExecutorCallback<List<ExecuteResult>> callback = new BatchedJDBCExecutorCallback(storageTypes, sqlStatementSample, isExceptionThrown);
-            List<List<ExecuteResult>> executeResults = jdbcExecutor.execute(executionGroupContext, callback);
-            
-            boolean first = false;
-            for (List<ExecuteResult> each : executeResults) {
-                for (ExecuteResult obj : each) {
-                    if (obj instanceof QueryResult) {
-                        QueryResultMetaData meta = ((QueryResult) obj).getMetaData();
-                        int columnCount = meta.getColumnCount();
-                        List<QueryHeader> headers = new ArrayList<>(columnCount);
-                        
-                        for (int i = 1; i <= columnCount; i++) {
-                            headers.add(generateQueryHeader(meta, i));
-                        }
-                        
-                        if (!first) {
-                            result.add(new QueryResponseHeader(headers));
-                            ((QueryResult) obj).close();
-                            first = true;
-                        }
-                    } else {
-                        if (!first) {
-                            result.add(new UpdateResponseHeader(sqlStatementSample,
-                                    Collections.singletonList(new UpdateResult(((UpdateResult) obj).getUpdateCount(), ((UpdateResult) obj).getLastInsertId()))));
-                            first = true;
+            try{
+                List<List<ExecuteResult>> executeResults = jdbcExecutor.execute(executionGroupContext, callback);
+                feedback((List<ExecutionGroup<JDBCExecutionUnit>>) executionGroupContext.getInputGroups(), true);
+                boolean first = false;
+                for (List<ExecuteResult> each : executeResults) {
+                    for (ExecuteResult obj : each) {
+                        if (obj instanceof QueryResult) {
+                            QueryResultMetaData meta = ((QueryResult) obj).getMetaData();
+                            int columnCount = meta.getColumnCount();
+                            List<QueryHeader> headers = new ArrayList<>(columnCount);
+
+                            for (int i = 1; i <= columnCount; i++) {
+                                headers.add(generateQueryHeader(meta, i));
+                            }
+
+                            if (!first) {
+                                result.add(new QueryResponseHeader(headers));
+                                ((QueryResult) obj).close();
+                                first = true;
+                            }
+                        } else {
+                            if (!first) {
+                                result.add(new UpdateResponseHeader(sqlStatementSample,
+                                        Collections.singletonList(new UpdateResult(((UpdateResult) obj).getUpdateCount(), ((UpdateResult) obj).getLastInsertId()))));
+                                first = true;
+                            }
                         }
                     }
                 }
+            } catch (Exception ex) {
+                feedback((List<ExecutionGroup<JDBCExecutionUnit>>) executionGroupContext.getInputGroups(), false);
+                throw ex;
             }
         }
         
         return result;
+    }
+
+    private void feedback(List<ExecutionGroup<JDBCExecutionUnit>> groupUnits, boolean isFinish) {
+        double networkThreshold = Latency.getInstance().getLongestLatency();
+
+        for (ExecutionGroup<JDBCExecutionUnit> each: groupUnits) {
+            // TODO: Need amendment !!!
+            ExecutionUnit executionUnit = each.getInputs().get(0).getExecutionUnit();
+            String dataSourceName = executionUnit.getDataSourceName();
+
+            int localExecuteTime = Math.max(0, executionUnit.getRealExecuteLatency() - (int) Latency.getInstance().GetLatency(dataSourceName));
+            for (Map.Entry<String, List<Integer>> tableToKeys: executionUnit.getKeys().entrySet()) {
+                double totalWeight = 0;
+                if (isFinish) {
+                    for (Integer key: tableToKeys.getValue()) {
+                        totalWeight += LocalLockTable.getInstance().getLockMetaData(tableToKeys.getKey(), key).getLatency();
+                    }
+                }
+
+                for (Integer key: tableToKeys.getValue()) {
+                    LockMetaData lockMetaData = LocalLockTable.getInstance().getLockMetaData(tableToKeys.getKey(), key);
+                    Objects.requireNonNull(lockMetaData).decProcessing();
+                    lockMetaData.incCount();
+                    if (isFinish) {
+                        double singleLatency = localExecuteTime * lockMetaData.getLatency() / totalWeight;
+
+                        if (singleLatency < networkThreshold) {
+                            lockMetaData.incSuccessCount();
+                            LocalLockTable.getInstance().getLockMetaData(tableToKeys.getKey(), key).updateLatency(singleLatency);
+                        }
+                    }
+                }
+            }
+
+        }
     }
     
     private static class BatchedJDBCExecutorCallback extends JDBCExecutorCallback<List<ExecuteResult>> {

@@ -24,6 +24,8 @@ import org.apache.shardingsphere.infra.binder.type.TableAvailable;
 import org.apache.shardingsphere.infra.binder.type.WhereAvailable;
 import org.apache.shardingsphere.sql.parser.sql.common.extractor.TableExtractor;
 import org.apache.shardingsphere.sql.parser.sql.common.segment.dml.column.ColumnSegment;
+import org.apache.shardingsphere.sql.parser.sql.common.segment.dml.expr.BinaryOperationExpression;
+import org.apache.shardingsphere.sql.parser.sql.common.segment.dml.expr.simple.LiteralExpressionSegment;
 import org.apache.shardingsphere.sql.parser.sql.common.segment.dml.predicate.WhereSegment;
 import org.apache.shardingsphere.sql.parser.sql.common.segment.generic.table.SimpleTableSegment;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.dml.UpdateStatement;
@@ -31,6 +33,7 @@ import org.apache.shardingsphere.sql.parser.sql.common.util.ColumnExtractor;
 
 import java.util.Collection;
 import java.util.LinkedList;
+import java.util.List;
 
 /**
  * Update SQL statement context.
@@ -70,5 +73,21 @@ public final class UpdateStatementContext extends CommonSQLStatementContext<Upda
     @Override
     public Collection<ColumnSegment> getColumnSegments() {
         return columnSegments;
+    }
+
+    public List<Integer> getKey() {
+        List<Integer> result = new LinkedList<>();
+        for (WhereSegment whereSegment: whereSegments) {
+            result.add(whereSegment.getKey());
+        }
+        return result;
+    }
+
+    public List<String> getTableName() {
+        List<String> result = new LinkedList<>();
+        for (SimpleTableSegment simpleSQLStatement: tablesContext.getTables()) {
+            result.add(simpleSQLStatement.getTableName().getIdentifier().getValue());
+        }
+        return result;
     }
 }

@@ -80,9 +80,7 @@ public final class MySQLComQueryPacketExecutor implements QueryCommandExecutor {
                 proxyBackendHandler = new MySQLMultiStatementsHandler(connectionSession, sqlStatements, packet.getSql(), false);
             }
         }
-        
-        // proxyBackendHandler = areMultiStatements(connectionSession, sqlStatement, packet.getSql()) ? new MySQLMultiStatementsHandler(connectionSession, sqlStatement, packet.getSql(), true)
-        // : ProxyBackendHandlerFactory.newInstance(databaseType, packet.getSql(), sqlStatement, connectionSession, packet.getHintValueContext());
+
         characterSet = connectionSession.getAttributeMap().attr(MySQLConstants.MYSQL_CHARACTER_SET_ATTRIBUTE_KEY).get().getId();
     }
     
@@ -125,7 +123,9 @@ public final class MySQLComQueryPacketExecutor implements QueryCommandExecutor {
     public Collection<DatabasePacket<?>> execute() throws SQLException {
         // TODO: multi executor response header
         Collection<DatabasePacket<?>> result = new LinkedList<>();
+//        long startTime = System.currentTimeMillis();
         List<ResponseHeader> responseHeader = proxyBackendHandler.execute();
+//        System.out.println("executeTime: " + (System.currentTimeMillis() - startTime) + " ms");
         
         for (ResponseHeader each : responseHeader) {
             if (each instanceof QueryResponseHeader) {

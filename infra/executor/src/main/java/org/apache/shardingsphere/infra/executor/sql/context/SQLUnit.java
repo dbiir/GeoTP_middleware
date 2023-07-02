@@ -36,6 +36,8 @@ import java.util.List;
 public final class SQLUnit {
     
     private String sql;
+
+    private List<String> tables;
     
     private List<Object> parameters;
     

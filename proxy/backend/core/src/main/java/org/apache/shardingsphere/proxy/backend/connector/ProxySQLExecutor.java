@@ -18,12 +18,16 @@
 package org.apache.shardingsphere.proxy.backend.connector;
 
 import org.apache.shardingsphere.dialect.exception.transaction.TableModifyInTransactionException;
+import org.apache.shardingsphere.infra.binder.statement.SQLStatementContext;
+import org.apache.shardingsphere.infra.binder.statement.dml.SelectStatementContext;
+import org.apache.shardingsphere.infra.binder.statement.dml.UpdateStatementContext;
 import org.apache.shardingsphere.infra.binder.type.TableAvailable;
 import org.apache.shardingsphere.infra.config.props.ConfigurationPropertyKey;
 import org.apache.shardingsphere.infra.context.ConnectionContext;
 import org.apache.shardingsphere.infra.context.transaction.TransactionConnectionContext;
 import org.apache.shardingsphere.infra.database.type.DatabaseType;
 import org.apache.shardingsphere.infra.executor.kernel.ExecutorEngine;
+import org.apache.shardingsphere.infra.executor.kernel.model.ExecutionGroup;
 import org.apache.shardingsphere.infra.executor.kernel.model.ExecutionGroupContext;
 import org.apache.shardingsphere.infra.executor.kernel.model.ExecutionGroupReportContext;
 import org.apache.shardingsphere.infra.executor.sql.context.ExecutionContext;
@@ -49,7 +53,9 @@ import org.apache.shardingsphere.proxy.backend.context.BackendExecutorContext;
 import org.apache.shardingsphere.proxy.backend.context.ProxyContext;
 import org.apache.shardingsphere.proxy.backend.session.ConnectionSession;
 import org.apache.shardingsphere.proxy.backend.session.transaction.TransactionStatus;
-import org.apache.shardingsphere.proxy.backend.statistics.monitor.LockWait;
+import org.apache.shardingsphere.proxy.backend.statistics.monitor.LocalLockTable;
+import org.apache.shardingsphere.proxy.backend.statistics.monitor.LockMetaData;
+import org.apache.shardingsphere.proxy.backend.statistics.network.Latency;
 import org.apache.shardingsphere.sql.parser.sql.common.segment.dml.expr.BinaryOperationExpression;
 import org.apache.shardingsphere.sql.parser.sql.common.segment.dml.expr.simple.LiteralExpressionSegment;
 import org.apache.shardingsphere.sql.parser.sql.common.segment.generic.table.SimpleTableSegment;
@@ -201,11 +207,12 @@ public final class ProxySQLExecutor {
             return getSaneExecuteResults(executionContext, ex);
         }
         
-        boolean needStat = LockWait.getInstance().needStatistic();
+        boolean needStat = LocalLockTable.getInstance().needStatistic();
         boolean op = false;
         String tableName = "";
         int idx = -1;
         long startTime = 0;
+        double executionTime;
         SQLStatement sqlStatement = executionContext.getQueryContext().getSqlStatementContext().getSqlStatement();
         if (sqlStatement instanceof SelectStatement) {
             if (((SelectStatement) sqlStatement).getFrom() != null && ((SelectStatement) sqlStatement).getFrom() instanceof SimpleTableSegment) {
@@ -230,15 +237,57 @@ public final class ProxySQLExecutor {
                 idx = (int) ((LiteralExpressionSegment) ((BinaryOperationExpression) ((UpdateStatement) sqlStatement).getWhere().get().getExpr()).getRight()).getLiterals();
             }
         }
-        
+        LockMetaData lockMetaData = LocalLockTable.getInstance().getLockMetaData(tableName, idx);
+
+        boolean needPreAbort = analyseSingleSQL(tableName, idx);
+        if (!needPreAbort) {
+            throw new SQLException("this transaction is most likely to timeout, pre-abort in harp");
+        }
+
         executeTransactionHooksBeforeExecuteSQL(backendConnection.getConnectionSession());
         if (needStat && idx >= 0)
             startTime = System.nanoTime();
-        List<ExecuteResult> results = jdbcExecutor.execute(executionContext.getQueryContext(), executionGroupContext, isReturnGeneratedKeys, isExceptionThrown);
+        List<ExecuteResult> results;
+        try {
+            if (Latency.getInstance().NeedDelay()) {
+                startTime = System.nanoTime();
+                if (lockMetaData != null) {
+                    lockMetaData.incProcessing();
+                }
+            }
+
+            results = jdbcExecutor.execute(executionContext.getQueryContext(), executionGroupContext, isReturnGeneratedKeys, isExceptionThrown);
+            if (Latency.getInstance().NeedDelay()) {
+                if (lockMetaData != null) {
+                    lockMetaData.incCount();
+                    lockMetaData.decProcessing();
+                    double networkThreshold = Latency.getInstance().getLongestLatency();
+                    executionTime = (System.nanoTime() - startTime) * 1.0 / 1000000;
+                    if (executionTime < 2 * networkThreshold) { // 2RTT
+                        lockMetaData.incSuccessCount();
+                        lockMetaData.updateLatency(executionTime);
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            if (lockMetaData != null) {
+                lockMetaData.incCount();
+                lockMetaData.decProcessing();
+            }
+            throw ex;
+        }
         if (needStat && idx >= 0) {
-            LockWait.getInstance().updateLockTime(tableName, idx, (System.nanoTime() - startTime) * 1.0 / 1000000, op);
+            LocalLockTable.getInstance().updateLockTime(tableName, idx, (System.nanoTime() - startTime) * 1.0 / 1000000, op);
         }
         return results;
+    }
+
+    private boolean analyseSingleSQL(String tableName, int key) {
+        LockMetaData lockMetaData = LocalLockTable.getInstance().getLockMetaData(tableName, key);
+        if (lockMetaData == null)
+            return true;
+        double p = lockMetaData.blockProbability();
+        return !(Math.random() < p);
     }
     
     private void executeTransactionHooksBeforeExecuteSQL(final ConnectionSession connectionSession) throws SQLException {

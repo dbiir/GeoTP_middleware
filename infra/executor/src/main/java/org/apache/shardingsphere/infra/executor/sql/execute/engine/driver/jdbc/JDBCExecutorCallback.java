@@ -22,6 +22,7 @@ import lombok.SneakyThrows;
 import org.apache.shardingsphere.infra.database.metadata.DataSourceMetaData;
 import org.apache.shardingsphere.infra.database.type.DatabaseType;
 import org.apache.shardingsphere.infra.executor.kernel.model.ExecutorCallback;
+import org.apache.shardingsphere.infra.executor.sql.context.ExecutionUnit;
 import org.apache.shardingsphere.infra.executor.sql.context.SQLUnit;
 import org.apache.shardingsphere.infra.executor.sql.execute.engine.ConnectionMode;
 import org.apache.shardingsphere.infra.executor.sql.execute.engine.SQLExecutionUnit;
@@ -34,10 +35,7 @@ import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
 import java.sql.DatabaseMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.Collection;
-import java.util.LinkedList;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -83,15 +81,19 @@ public abstract class JDBCExecutorCallback<T> implements ExecutorCallback<JDBCEx
         DataSourceMetaData dataSourceMetaData = getDataSourceMetaData(jdbcExecutionUnit.getStorageResource().getConnection().getMetaData(), storageType);
         SQLExecutionHook sqlExecutionHook = new SPISQLExecutionHook();
         try {
+            ExecutionUnit executionUnit = jdbcExecutionUnit.getExecutionUnit();
             // delay execution
-            if (jdbcExecutionUnit.getExecutionUnit().GetDelayTime() > 0) {
-                Thread.sleep(jdbcExecutionUnit.getExecutionUnit().GetDelayTime());
+            if (executionUnit.GetDelayTime() > 0) {
+                Thread.sleep(executionUnit.GetDelayTime());
 //                Thread.sleep(100);
 //                System.out.println("delay: " + jdbcExecutionUnit.getExecutionUnit().GetDelayTime() + "ms");
             }
-            SQLUnit sqlUnit = jdbcExecutionUnit.getExecutionUnit().getSqlUnit();
+            SQLUnit sqlUnit = executionUnit.getSqlUnit();
             sqlExecutionHook.start(jdbcExecutionUnit.getExecutionUnit().getDataSourceName(), sqlUnit.getSql(), sqlUnit.getParameters(), dataSourceMetaData, isTrunkThread);
+            long startTime = System.nanoTime();
             T result = executeSQL(sqlUnit.getSql(), jdbcExecutionUnit.getStorageResource(), jdbcExecutionUnit.getConnectionMode(), storageType);
+            long executeTime = System.nanoTime() - startTime;
+            executionUnit.setRealExecuteLatency((int) (executeTime / 100000));
             sqlExecutionHook.finishSuccess();
             finishReport(jdbcExecutionUnit);
             return result;

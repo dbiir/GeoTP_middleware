@@ -49,7 +49,9 @@ import org.apache.shardingsphere.sql.parser.sql.common.enums.ParameterMarkerType
 import org.apache.shardingsphere.sql.parser.sql.common.enums.SubqueryType;
 import org.apache.shardingsphere.sql.parser.sql.common.extractor.TableExtractor;
 import org.apache.shardingsphere.sql.parser.sql.common.segment.dml.column.ColumnSegment;
+import org.apache.shardingsphere.sql.parser.sql.common.segment.dml.expr.BinaryOperationExpression;
 import org.apache.shardingsphere.sql.parser.sql.common.segment.dml.expr.ExpressionSegment;
+import org.apache.shardingsphere.sql.parser.sql.common.segment.dml.expr.simple.LiteralExpressionSegment;
 import org.apache.shardingsphere.sql.parser.sql.common.segment.dml.expr.simple.ParameterMarkerExpressionSegment;
 import org.apache.shardingsphere.sql.parser.sql.common.segment.dml.expr.subquery.SubquerySegment;
 import org.apache.shardingsphere.sql.parser.sql.common.segment.dml.order.item.ColumnOrderByItemSegment;
@@ -334,5 +336,21 @@ public final class SelectStatementContext extends CommonSQLStatementContext<Sele
     @Override
     public void setUpParameters(final List<Object> params) {
         paginationContext = new PaginationContextEngine().createPaginationContext(getSqlStatement(), projectionsContext, params, whereSegments);
+    }
+
+    public List<Integer> getKey() {
+        List<Integer> result = new LinkedList<>();
+        for (WhereSegment whereSegment: whereSegments) {
+            result.add(whereSegment.getKey());
+        }
+        return result;
+    }
+
+    public List<String> getTableName() {
+        List<String> result = new LinkedList<>();
+        for (SimpleTableSegment simpleSQLStatement: tablesContext.getTables()) {
+            result.add(simpleSQLStatement.getTableName().getIdentifier().getValue());
+        }
+        return result;
     }
 }

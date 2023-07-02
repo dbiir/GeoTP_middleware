@@ -21,7 +21,9 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import org.apache.shardingsphere.sql.parser.sql.common.segment.SQLSegment;
+import org.apache.shardingsphere.sql.parser.sql.common.segment.dml.expr.BinaryOperationExpression;
 import org.apache.shardingsphere.sql.parser.sql.common.segment.dml.expr.ExpressionSegment;
+import org.apache.shardingsphere.sql.parser.sql.common.segment.dml.expr.simple.LiteralExpressionSegment;
 
 /**
  * Where segment.
@@ -36,4 +38,17 @@ public final class WhereSegment implements SQLSegment {
     private final int stopIndex;
     
     private final ExpressionSegment expr;
+
+    public Integer getKey(){
+        if (expr instanceof BinaryOperationExpression) {
+            BinaryOperationExpression binaryOperationExpression = (BinaryOperationExpression) expr;
+            if (binaryOperationExpression.getRight() instanceof LiteralExpressionSegment) {
+                LiteralExpressionSegment literalExpressionSegment = (LiteralExpressionSegment) binaryOperationExpression.getRight();
+                if (literalExpressionSegment.getLiterals() instanceof Integer) {
+                    return (Integer) literalExpressionSegment.getLiterals();
+                }
+            }
+        }
+        return -1;
+    }
 }

@@ -18,8 +18,9 @@
 package org.apache.shardingsphere.proxy.backend.statistics;
 
 import lombok.NoArgsConstructor;
+import lombok.SneakyThrows;
 import org.apache.shardingsphere.proxy.backend.exception.FileIOException;
-import org.apache.shardingsphere.proxy.backend.statistics.monitor.LockWait;
+import org.apache.shardingsphere.proxy.backend.statistics.monitor.LocalLockTable;
 import org.apache.shardingsphere.proxy.backend.statistics.network.Latency;
 
 import java.io.File;
@@ -36,24 +37,27 @@ public final class StatFlusher implements Runnable {
     private List<String> tables = new LinkedList<>();
     private final int batchSize = 128;
     
+    @SneakyThrows
     @Override
     public void run() {
-        LockWait lockWait = LockWait.getInstance();
+        LocalLockTable localLockTable = LocalLockTable.getInstance();
         String outputLockFilePath = logPath + "lock_" + df.format(new Date()) + ".log";
         String outputNetworkFilePath = logPath + "network_" + df.format(new Date()) + ".log";
         // TODO: flush dynamic network info
         
         while (true) {
+            Thread.sleep(50);
             StringBuilder stats = new StringBuilder();
+            StringBuilder statsNetwork = new StringBuilder();
             
             try {
                 long startTime = System.currentTimeMillis();
                 
-                for (String each : lockWait.getTableToLockTimes().keySet()) {
+                for (String each : localLockTable.getTableNameToLockMetaData().keySet()) {
                     stats = new StringBuilder("Table name: " + each + "\n");
-                    int entrySize = lockWait.getTableToLockTimes().get(each).length;
+                    int entrySize = localLockTable.getTableNameToLockMetaData().get(each).length;
                     for (int i = 0; i < entrySize; i++) {
-                        String str = lockWait.getLockTime(each, i).flushMetaData();
+                        String str = localLockTable.getLockMetaData(each, i).flushMetaData();
                         if (!Objects.equals(str, "")) {
                             stats.append("i: ").append(i).append("\t").append(str).append("\n");
                         }
@@ -66,8 +70,9 @@ public final class StatFlusher implements Runnable {
                 }
                 
                 stats.append("Consume of flushing: ").append(System.currentTimeMillis() - startTime).append(" ms\n");
-                stats.append(Latency.getInstance().toString());
+                statsNetwork.append(Latency.getInstance().toString());
                 outputToFile(outputLockFilePath, stats.toString());
+                outputToFile(outputNetworkFilePath, statsNetwork.toString());
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

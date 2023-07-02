@@ -27,7 +27,7 @@ import org.apache.shardingsphere.proxy.backend.config.YamlProxyConfiguration;
 import org.apache.shardingsphere.proxy.backend.config.yaml.YamlProxyDataSourceConfiguration;
 import org.apache.shardingsphere.proxy.backend.config.yaml.YamlProxyDatabaseConfiguration;
 import org.apache.shardingsphere.proxy.backend.statistics.StatFlusher;
-import org.apache.shardingsphere.proxy.backend.statistics.monitor.LockWait;
+import org.apache.shardingsphere.proxy.backend.statistics.monitor.LocalLockTable;
 import org.apache.shardingsphere.proxy.backend.statistics.network.Latency;
 import org.apache.shardingsphere.proxy.backend.statistics.network.LatencyCollector;
 import org.apache.shardingsphere.proxy.frontend.CDCServer;
@@ -85,12 +85,13 @@ public final class Bootstrap {
             }
         }
         
-        if (LockWait.getInstance().needStatistic()) {
+        if (LocalLockTable.getInstance().needStatistic()) {
             Thread flushThread = new Thread(new StatFlusher());
             flushThread.start();
         }
 
         if (Latency.getInstance().NeedDelay()) {
+            System.out.println("----- start ping thread -----");
             Thread pingThread = new Thread(new LatencyCollector());
             pingThread.start();
         }
@@ -100,7 +101,7 @@ public final class Bootstrap {
         List<String> result = new LinkedList<>();
         for (String each : args) {
             if (each.contains("--stat")) {
-                LockWait.getInstance().setEnableStatistical(each.contains("true"));
+                LocalLockTable.getInstance().setEnableStatistical(each.contains("true"));
             } else if (each.contains("--alg")) {
                 String[] split = each.split("=");
                 Latency.getInstance().SetAlgorithm(split[split.length - 1]);
