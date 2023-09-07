@@ -38,8 +38,8 @@ public final class WhereSegment implements SQLSegment {
     private final int stopIndex;
     
     private final ExpressionSegment expr;
-
-    public Integer getKey(){
+    
+    public Integer getKey() {
         if (expr instanceof BinaryOperationExpression) {
             BinaryOperationExpression binaryOperationExpression = (BinaryOperationExpression) expr;
             if (binaryOperationExpression.getRight() instanceof LiteralExpressionSegment) {

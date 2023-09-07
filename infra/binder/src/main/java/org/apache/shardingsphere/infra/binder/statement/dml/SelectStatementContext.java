@@ -337,18 +337,18 @@ public final class SelectStatementContext extends CommonSQLStatementContext<Sele
     public void setUpParameters(final List<Object> params) {
         paginationContext = new PaginationContextEngine().createPaginationContext(getSqlStatement(), projectionsContext, params, whereSegments);
     }
-
+    
     public List<Integer> getKey() {
         List<Integer> result = new LinkedList<>();
-        for (WhereSegment whereSegment: whereSegments) {
+        for (WhereSegment whereSegment : whereSegments) {
             result.add(whereSegment.getKey());
         }
         return result;
     }
-
+    
     public List<String> getTableName() {
         List<String> result = new LinkedList<>();
-        for (SimpleTableSegment simpleSQLStatement: tablesContext.getTables()) {
+        for (SimpleTableSegment simpleSQLStatement : tablesContext.getTables()) {
             result.add(simpleSQLStatement.getTableName().getIdentifier().getValue());
         }
         return result;

@@ -238,12 +238,12 @@ public final class ProxySQLExecutor {
             }
         }
         LockMetaData lockMetaData = LocalLockTable.getInstance().getLockMetaData(tableName, idx);
-
+        
         boolean needPreAbort = analyseSingleSQL(tableName, idx);
         if (!needPreAbort) {
             throw new SQLException("this transaction is most likely to timeout, pre-abort in harp");
         }
-
+        
         executeTransactionHooksBeforeExecuteSQL(backendConnection.getConnectionSession());
         if (needStat && idx >= 0)
             startTime = System.nanoTime();
@@ -255,7 +255,7 @@ public final class ProxySQLExecutor {
                     lockMetaData.incProcessing();
                 }
             }
-
+            
             results = jdbcExecutor.execute(executionContext.getQueryContext(), executionGroupContext, isReturnGeneratedKeys, isExceptionThrown);
             if (Latency.getInstance().NeedDelay()) {
                 if (lockMetaData != null) {
@@ -281,12 +281,12 @@ public final class ProxySQLExecutor {
         }
         return results;
     }
-
+    
     private boolean analyseSingleSQL(String tableName, int key) {
         LockMetaData lockMetaData = LocalLockTable.getInstance().getLockMetaData(tableName, key);
         if (lockMetaData == null)
             return true;
-        double p = lockMetaData.blockProbability();
+        double p = 1 - lockMetaData.nonBlockProbability();
         return !(Math.random() < p);
     }
     

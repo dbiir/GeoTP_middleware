@@ -45,7 +45,7 @@ authority:
 #transaction:
 #  defaultType: XA
 #  providerType: Atomikos
-#
+
 #sqlParser:
 #  sqlCommentParseEnabled: false
 #  sqlStatementCache:

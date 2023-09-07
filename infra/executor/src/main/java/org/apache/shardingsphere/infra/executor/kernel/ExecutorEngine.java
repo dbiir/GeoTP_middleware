@@ -110,9 +110,9 @@ public final class ExecutorEngine implements AutoCloseable {
         if (executionGroupContext.getInputGroups().isEmpty()) {
             return Collections.emptyList();
         }
-//        long startTime = System.currentTimeMillis();
+        // long startTime = System.currentTimeMillis();
         List<O> result = parallelExecute(executionGroupContext.getInputGroups().iterator(), firstCallback, callback);
-//        System.out.println("parallel execute time: " + (System.currentTimeMillis() - startTime) + " ms; sql: " + executionGroupContext.getInputGroups().toString());
+        // System.out.println("parallel execute time: " + (System.currentTimeMillis() - startTime) + " ms; sql: " + executionGroupContext.getInputGroups().toString());
         return result;
     }
     

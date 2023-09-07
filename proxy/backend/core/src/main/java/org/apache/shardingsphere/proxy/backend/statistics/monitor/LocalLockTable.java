@@ -19,28 +19,54 @@ package org.apache.shardingsphere.proxy.backend.statistics.monitor;
 
 import lombok.Getter;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.HashMap;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Getter
 public final class LocalLockTable {
     
-    private static final LocalLockTable INSTANCE = new LocalLockTable(100001);
+    private static final LocalLockTable INSTANCE;
+    
+    static {
+        try {
+            INSTANCE = new LocalLockTable(100001);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+    
     private boolean enableStatistic;
     private static final double alpha = 0.875;
     private final int totalNum;
     private final ConcurrentHashMap<String, LockMetaData[]> tableNameToLockMetaData = new ConcurrentHashMap<>(15);
-    private LocalLockTable(int totalNum) {
+    private final HashMap<String, Integer> DefaultTableNameToSize = new HashMap<>(10);
+    String fileName = "default_table_size";
+    private LocalLockTable(int totalNum) throws IOException {
         this.enableStatistic = false;
         this.totalNum = totalNum;
-        tableNameToLockMetaData.put("usertable", new LockMetaData[totalNum]);
-        for (int i = 0; i < totalNum; i++) {
-            tableNameToLockMetaData.get("usertable")[i] = new LockMetaData();
+        // tableNameToLockMetaData.put("usertable", new LockMetaData[totalNum]);
+        // for (int i = 0; i < totalNum; i++) {
+        // tableNameToLockMetaData.get("usertable")[i] = new LockMetaData();
+        // }
+        List<String> lines = Files.readAllLines(Paths.get(fileName), StandardCharsets.UTF_8);
+        
+        for (String each : lines) {
+            String[] results = each.split(" ");
+            System.out.println(results[0] + " " + results[1]);
+            DefaultTableNameToSize.put(results[0], Integer.valueOf(results[1]));
+            registerTable(results[0], Integer.parseInt(results[1]));
         }
     }
     
     // TODO: (urgency level: low) add LRU strategy to this Array;
     public void registerTable(String tableName, int tableScale) {
         if (tableNameToLockMetaData.get(tableName) == null) {
+            System.out.println("register " + tableName + ", Size " + tableScale);
             tableNameToLockMetaData.put(tableName, new LockMetaData[tableScale]);
             for (int i = 0; i < tableScale; i++) {
                 tableNameToLockMetaData.get(tableName)[i] = new LockMetaData();
@@ -50,11 +76,20 @@ public final class LocalLockTable {
     
     public void registerTable(String tableName) {
         if (tableNameToLockMetaData.get(tableName) == null) {
-            tableNameToLockMetaData.put(tableName, new LockMetaData[totalNum]);
+            int size = getDefaultTableSize(tableName);
+            System.out.println("register " + tableName + ", Size " + size);
+            tableNameToLockMetaData.put(tableName, new LockMetaData[size]);
             for (int i = 0; i < totalNum; i++) {
                 tableNameToLockMetaData.get(tableName)[i] = new LockMetaData();
             }
         }
+    }
+    
+    private int getDefaultTableSize(String tableName) {
+        if (DefaultTableNameToSize.get(tableName) != null) {
+            return DefaultTableNameToSize.get(tableName);
+        }
+        return totalNum;
     }
     
     public void updateLockTime(String tableName, int[] entryIndexes, double[] latencies, boolean[] ops) {
@@ -88,8 +123,9 @@ public final class LocalLockTable {
     }
     
     public LockMetaData getLockMetaData(String tableName, int index) {
-        if (tableNameToLockMetaData.get(tableName) == null)
+        if (tableNameToLockMetaData.get(tableName) == null || index < 0)
             return null;
+        
         return tableNameToLockMetaData.get(tableName)[index];
     }
     

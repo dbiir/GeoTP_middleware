@@ -101,9 +101,9 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
     private final Map<String, List<ExecutionUnit>> dataSourcesToExecutionUnits = new HashMap<>();
     
     private final Map<String, List<Integer>> dataSourcesToCommandId = new HashMap<>();
-
+    
     private final Map<String, List<QueryContext>> dataSourcesToQueryContext = new HashMap<>();
-
+    
     private ExecutionContext anyExecutionContext;
     
     private boolean isBatchInsert;
@@ -153,7 +153,7 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                 groupExecuteUnits.computeIfAbsent(dataSourceName, unused -> new LinkedList<>()).add(eachExecutionUnit);
                 dataSourcesToCommandId.computeIfAbsent(dataSourceName, unused -> new LinkedList<>()).add(i);
             }
-
+            
             dataSourcesToQueryContext.computeIfAbsent(dataSourceName, unused -> new LinkedList<>()).add(executionContext.getQueryContext());
         }
         
@@ -162,29 +162,10 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
             for (int i = 1; i < each.size(); i++) {
                 first.CombineExecutionUnit(each.get(i));
             }
+            
+            // TODO: add prepare stmt
+            
             dataSourcesToExecutionUnits.computeIfAbsent(first.getDataSourceName(), unused -> new LinkedList<>()).add(first);
-        }
-        
-//        if (Latency.getInstance().NeedDelay()) {
-//            analysisLatency(groupExecuteUnits);
-//        }
-    }
-    
-    private void analysisLatency(Map<String, List<ExecutionUnit>> groupUnits) {
-        // harp
-        if (groupUnits.size() <= 1) {
-            return;
-        }
-
-        long maxLatency = 0;
-        for (String each : groupUnits.keySet()) {
-            // TODO: Need amendment !!!
-            long srcLat = (long) Latency.getInstance().GetLatency(each);
-            maxLatency = Math.max(maxLatency, srcLat);
-        }
-        
-        for (Map.Entry<String, List<ExecutionUnit>> each : groupUnits.entrySet()) {
-            each.getValue().get(0).SetDelayTime((maxLatency - (long) Latency.getInstance().GetLatency(each.getKey())));
         }
     }
     
@@ -228,71 +209,73 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                 }
             }
         }
-
+        
         if (Latency.getInstance().NeedDelay()) {
             boolean needPreAbort = analysisLatency((List<ExecutionGroup<JDBCExecutionUnit>>) executionGroupContext.getInputGroups());
             if (!needPreAbort) {
                 throw new SQLException("this transaction is most likely to timeout, pre-abort in harp");
             }
         }
-
+        
         return executeMultiStatements(executionGroupContext);
     }
-
+    
     private boolean analysisLatency(List<ExecutionGroup<JDBCExecutionUnit>> groupUnits) {
         // harp
-        if (groupUnits.size() <= 1) {
+        if (groupUnits.size() == 0) {
             return true;
         }
-
+        
         int maxLatency = 0;
-        double p = 0; // abort probability
-
-        for (ExecutionGroup<JDBCExecutionUnit> each: groupUnits) {
+        
+        for (ExecutionGroup<JDBCExecutionUnit> each : groupUnits) {
             ExecutionUnit executionUnit = each.getInputs().get(0).getExecutionUnit();
             String dataSourceName = executionUnit.getDataSourceName();
-
+            
             int srcLat = (int) Latency.getInstance().GetLatency(dataSourceName);
             executionUnit.updateLocalExecuteLatency(srcLat);
             executionUnit.setNetworkLatency(srcLat);
             executionUnit.setHarp(true);
-
-            for (QueryContext queryContext: dataSourcesToQueryContext.get(dataSourceName)) {
+            
+            for (QueryContext queryContext : dataSourcesToQueryContext.get(dataSourceName)) {
                 String tableName = getTableNameFromSQLStatementContext(queryContext.getSqlStatementContext());
                 int key = getKeyFromSQLStatementContext(queryContext.getSqlStatementContext());
-                executionUnit.updateProbability(LocalLockTable.getInstance().getLockMetaData(tableName, key).blockProbability());
-                executionUnit.updateLocalExecuteLatency(LocalLockTable.getInstance().getLockMetaData(tableName, key).getLatency());
+                executionUnit.updateProbability(Objects.requireNonNull(LocalLockTable.getInstance().getLockMetaData(tableName, key)).nonBlockProbability());
+                executionUnit.updateLocalExecuteLatency((int) Objects.requireNonNull(LocalLockTable.getInstance().getLockMetaData(tableName, key)).getLatency());
                 executionUnit.addKeys(tableName, key);
             }
-
+            
+            System.out.println("probability: " + executionUnit.getAbortProbability() + " latency: " + executionUnit.getLocalExecuteLatency());
+            
             // pre-abort
             if (Math.random() < executionUnit.getAbortProbability()) {
                 return false;
             }
-
+            
             maxLatency = Math.max(maxLatency, executionUnit.getLocalExecuteLatency());
+            // System.out.println("maxLatency: " + maxLatency + "ms");
         }
-
-        for (ExecutionGroup<JDBCExecutionUnit> each: groupUnits) {
+        
+        for (ExecutionGroup<JDBCExecutionUnit> each : groupUnits) {
             ExecutionUnit executionUnit = each.getInputs().get(0).getExecutionUnit();
             String dataSourceName = executionUnit.getDataSourceName();
-
-            for (QueryContext queryContext: dataSourcesToQueryContext.get(dataSourceName)) {
+            
+            for (QueryContext queryContext : dataSourcesToQueryContext.get(dataSourceName)) {
                 String tableName = getTableNameFromSQLStatementContext(queryContext.getSqlStatementContext());
                 int key = getKeyFromSQLStatementContext(queryContext.getSqlStatementContext());
-                LocalLockTable.getInstance().getLockMetaData(tableName, key).incProcessing();
+                Objects.requireNonNull(LocalLockTable.getInstance().getLockMetaData(tableName, key)).incProcessing();
             }
         }
-
-        for (ExecutionGroup<JDBCExecutionUnit> each: groupUnits) {
+        
+        for (ExecutionGroup<JDBCExecutionUnit> each : groupUnits) {
             ExecutionUnit executionUnit = each.getInputs().get(0).getExecutionUnit();
             long srcLat = executionUnit.getLocalExecuteLatency();
             executionUnit.SetDelayTime(maxLatency - srcLat);
         }
-
+        
         return true;
     }
-
+    
     private String getTableNameFromSQLStatementContext(SQLStatementContext sqlStatementContext) {
         String tableName = "";
         if (sqlStatementContext instanceof SelectStatementContext) {
@@ -304,7 +287,7 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
         }
         return tableName;
     }
-
+    
     private int getKeyFromSQLStatementContext(SQLStatementContext sqlStatementContext) {
         int key = -1;
         if (sqlStatementContext instanceof SelectStatementContext) {
@@ -316,7 +299,7 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
         }
         return key;
     }
-
+    
     private Collection<ExecutionUnit> samplingExecutionUnit() {
         Collection<ExecutionUnit> result = new LinkedList<>();
         for (List<ExecutionUnit> each : dataSourcesToExecutionUnits.values()) {
@@ -365,7 +348,7 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
             result.add(new UpdateResponseHeader(sqlStatementSample, Collections.singletonList(new UpdateResult(updated, 0L))));
         } else {
             JDBCExecutorCallback<List<ExecuteResult>> callback = new BatchedJDBCExecutorCallback(storageTypes, sqlStatementSample, isExceptionThrown);
-            try{
+            try {
                 List<List<ExecuteResult>> executeResults = jdbcExecutor.execute(executionGroupContext, callback);
                 feedback((List<ExecutionGroup<JDBCExecutionUnit>>) executionGroupContext.getInputGroups(), true);
                 boolean first = false;
@@ -375,15 +358,18 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                             QueryResultMetaData meta = ((QueryResult) obj).getMetaData();
                             int columnCount = meta.getColumnCount();
                             List<QueryHeader> headers = new ArrayList<>(columnCount);
-
+                            
                             for (int i = 1; i <= columnCount; i++) {
                                 headers.add(generateQueryHeader(meta, i));
                             }
-
+                            
                             if (!first) {
                                 result.add(new QueryResponseHeader(headers));
-                                ((QueryResult) obj).close();
                                 first = true;
+                            }
+                            try {
+                                ((QueryResult) obj).close();
+                            } catch (SQLException ignore) {
                             }
                         } else {
                             if (!first) {
@@ -393,6 +379,7 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                             }
                         }
                     }
+                    each.clear();
                 }
             } catch (Exception ex) {
                 feedback((List<ExecutionGroup<JDBCExecutionUnit>>) executionGroupContext.getInputGroups(), false);
@@ -402,39 +389,52 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
         
         return result;
     }
-
+    
     private void feedback(List<ExecutionGroup<JDBCExecutionUnit>> groupUnits, boolean isFinish) {
         double networkThreshold = Latency.getInstance().getLongestLatency();
-
-        for (ExecutionGroup<JDBCExecutionUnit> each: groupUnits) {
-            // TODO: Need amendment !!!
+        
+        for (ExecutionGroup<JDBCExecutionUnit> each : groupUnits) {
             ExecutionUnit executionUnit = each.getInputs().get(0).getExecutionUnit();
             String dataSourceName = executionUnit.getDataSourceName();
-
-            int localExecuteTime = Math.max(0, executionUnit.getRealExecuteLatency() - (int) Latency.getInstance().GetLatency(dataSourceName));
-            for (Map.Entry<String, List<Integer>> tableToKeys: executionUnit.getKeys().entrySet()) {
-                double totalWeight = 0;
-                if (isFinish) {
-                    for (Integer key: tableToKeys.getValue()) {
-                        totalWeight += LocalLockTable.getInstance().getLockMetaData(tableToKeys.getKey(), key).getLatency();
+            
+            double localExecuteTime = Math.max(0, executionUnit.getRealExecuteLatency() - Latency.getInstance().GetLatency(dataSourceName));
+            System.out.println("local execution latency: " + localExecuteTime + "ms");
+            
+            if (isFinish && localExecuteTime < 1e-5) {
+                for (Map.Entry<String, List<Integer>> tableToKeys : executionUnit.getKeys().entrySet()) {
+                    for (Integer key : tableToKeys.getValue()) {
+                        LockMetaData lockMetaData = LocalLockTable.getInstance().getLockMetaData(tableToKeys.getKey(), key);
+                        Objects.requireNonNull(lockMetaData).decProcessing();
+                        lockMetaData.incCount();
+                        lockMetaData.incSuccessCount();
                     }
                 }
-
-                for (Integer key: tableToKeys.getValue()) {
+                continue;
+            }
+            
+            for (Map.Entry<String, List<Integer>> tableToKeys : executionUnit.getKeys().entrySet()) {
+                double totalWeight = 0;
+                if (isFinish) {
+                    for (Integer key : tableToKeys.getValue()) {
+                        totalWeight += Objects.requireNonNull(LocalLockTable.getInstance().getLockMetaData(tableToKeys.getKey(), key)).getLatency();
+                    }
+                }
+                
+                for (Integer key : tableToKeys.getValue()) {
                     LockMetaData lockMetaData = LocalLockTable.getInstance().getLockMetaData(tableToKeys.getKey(), key);
                     Objects.requireNonNull(lockMetaData).decProcessing();
                     lockMetaData.incCount();
                     if (isFinish) {
-                        double singleLatency = localExecuteTime * lockMetaData.getLatency() / totalWeight;
-
+                        double singleLatency = localExecuteTime * lockMetaData.getLatency() / Math.max(totalWeight, 0.0001);
+                        System.out.println("singleLatency: " + singleLatency + "ms; latency: " + lockMetaData.getLatency() + "ms; total weight: " + totalWeight + "ms");
+                        
                         if (singleLatency < networkThreshold) {
                             lockMetaData.incSuccessCount();
-                            LocalLockTable.getInstance().getLockMetaData(tableToKeys.getKey(), key).updateLatency(singleLatency);
+                            Objects.requireNonNull(LocalLockTable.getInstance().getLockMetaData(tableToKeys.getKey(), key)).updateLatency(singleLatency);
                         }
                     }
                 }
             }
-
         }
     }
     
@@ -447,6 +447,7 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
         @Override
         protected List<ExecuteResult> executeSQL(final String sql, final Statement statement, final ConnectionMode connectionMode, final DatabaseType storageType) throws SQLException {
             try {
+                // boolean resultsAvailable = statement.execute(sql+";PREPARE;");
                 boolean resultsAvailable = statement.execute(sql);
                 
                 List<ExecuteResult> list = new ArrayList<>();
@@ -469,6 +470,7 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                 
                 return list;
             } catch (SQLException e) {
+                System.out.println("sql: " + sql);
                 e.printStackTrace();
                 throw e;
             } finally {

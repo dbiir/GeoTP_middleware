@@ -45,7 +45,7 @@ public final class LatencyCollector implements Runnable {
                 throw new RuntimeException(e);
             }
         }
-
+        
     }
     
     private static final class PingMessage {
@@ -86,7 +86,7 @@ public final class LatencyCollector implements Runnable {
                 if (line.contains("packet loss")) {
                     String pl = Arrays.stream(line.split(",")).filter((each) -> each.contains("packet loss"))
                             .collect(Collectors.toList()).get(0).trim().split(" ")[0];
-                    pingMessage.setPacketLoss(Double.parseDouble(pl.substring(0,pl.length()-1)));
+                    pingMessage.setPacketLoss(Double.parseDouble(pl.substring(0, pl.length() - 1)));
                 } else if (line.contains("rtt")) {
                     String[] strings = line.split(" ");
                     assert (strings.length == 5);

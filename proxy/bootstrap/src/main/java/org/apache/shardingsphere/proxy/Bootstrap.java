@@ -89,11 +89,11 @@ public final class Bootstrap {
             Thread flushThread = new Thread(new StatFlusher());
             flushThread.start();
         }
-
+        
         if (Latency.getInstance().NeedDelay()) {
             System.out.println("----- start ping thread -----");
-            Thread pingThread = new Thread(new LatencyCollector());
-            pingThread.start();
+            // Thread pingThread = new Thread(new LatencyCollector());
+            // pingThread.start();
         }
     }
     

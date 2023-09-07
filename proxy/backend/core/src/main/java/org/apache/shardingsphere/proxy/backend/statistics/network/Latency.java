@@ -48,7 +48,7 @@ public final class Latency {
         latencies.put(src, new double[windowSize + 1]);
         // TODO: hard code
         if (src.contains("ds_1")) {
-            latencies.get(src)[windowSize] = 47;
+            latencies.get(src)[windowSize] = 50;
         } else {
             latencies.get(src)[windowSize] = 0;
         }
@@ -89,13 +89,13 @@ public final class Latency {
             return -1.0;
         }
     }
-
+    
     public double getLongestLatency() {
         double longest = 0.0;
-        for (String each: latencies.keySet()) {
+        for (String each : latencies.keySet()) {
             longest = Math.max(longest, getStableLatency(each));
         }
-        return longest;
+        return longest * 2;
     }
     
     public void SetAlgorithm(String alg) {
@@ -105,7 +105,7 @@ public final class Latency {
     public boolean NeedDelay() {
         return algorithm.contains("harp");
     }
-
+    
     @Override
     public String toString() {
         StringBuilder result = new StringBuilder();
@@ -114,7 +114,7 @@ public final class Latency {
         }
         return result.toString();
     }
-
+    
     public static Latency getInstance() {
         return INSTANCE;
     }

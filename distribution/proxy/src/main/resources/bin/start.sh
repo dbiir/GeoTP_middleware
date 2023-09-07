@@ -104,6 +104,7 @@ unset -v ADDRESSES
 unset -v CONF_PATH
 unset -v FORCE
 unset -v SOCKET_FILE
+unset -v HARP
 
 print_usage() {
     echo "usage:"
@@ -196,6 +197,9 @@ if [[ $1 == -a ]] || [[ $1 == -p ]] || [[ $1 == -c ]] || [[ $1 == -f ]] || [[ $1
         esac
     done
 
+elif [ "$1" == "--harp" ]; then
+    HARP="alg=harp"
+
 elif [ $# == 1 ]; then
     PORT=$1
     echo "The port is $1"
@@ -228,7 +232,7 @@ if [ "$SOCKET_FILE" ]; then
 fi
 
 CLASS_PATH=${CONF_PATH}:${CLASS_PATH}
-MAIN_CLASS="${MAIN_CLASS} ${PORT} ${CONF_PATH} ${ADDRESSES} ${FORCE}"
+MAIN_CLASS="${MAIN_CLASS} ${PORT} ${CONF_PATH} ${ADDRESSES} ${FORCE} ${HARP}"
 
 echo "The classpath is ${CLASS_PATH}"
 echo "main class ${MAIN_CLASS}"
