@@ -40,7 +40,7 @@ public final class LatencyCollector implements Runnable {
             }
             count = (count + 1) % windowSize;
             try {
-                Thread.sleep(10);
+                Thread.sleep(20);
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }

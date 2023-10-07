@@ -84,14 +84,19 @@ public abstract class JDBCExecutorCallback<T> implements ExecutorCallback<JDBCEx
             ExecutionUnit executionUnit = jdbcExecutionUnit.getExecutionUnit();
             // delay execution
             if (executionUnit.GetDelayTime() > 0) {
-                Thread.sleep(executionUnit.GetDelayTime() / 2);
-                // Thread.sleep(100);
-                // System.out.println("delay: " + jdbcExecutionUnit.getExecutionUnit().GetDelayTime() + "ms");
+                Thread.sleep(executionUnit.GetDelayTime());
+//                 Thread.sleep(140);
+//                 System.out.println("data source: " + executionUnit.getDataSourceName() + " | delay: " + jdbcExecutionUnit.getExecutionUnit().GetDelayTime() + "ms");
             }
             SQLUnit sqlUnit = executionUnit.getSqlUnit();
             sqlExecutionHook.start(jdbcExecutionUnit.getExecutionUnit().getDataSourceName(), sqlUnit.getSql(), sqlUnit.getParameters(), dataSourceMetaData, isTrunkThread);
             long startTime = System.nanoTime();
             T result = executeSQL(sqlUnit.getSql(), jdbcExecutionUnit.getStorageResource(), jdbcExecutionUnit.getConnectionMode(), storageType);
+//            if (executionUnit.getDataSourceName().equals("ds_1")) {
+//                Thread.sleep(100);
+//            } else if (executionUnit.getDataSourceName().equals("ds_0")) {
+//                Thread.sleep(20);
+//            }
             long executeTime = System.nanoTime() - startTime;
             executionUnit.setRealExecuteLatency((int) (executeTime / 1000000));
             sqlExecutionHook.finishSuccess();

@@ -47,11 +47,11 @@ public final class Latency {
         System.out.println("Add Source " + src);
         latencies.put(src, new double[windowSize + 1]);
         // TODO: hard code
-        if (src.contains("ds_1")) {
-            latencies.get(src)[windowSize] = 50;
-        } else {
-            latencies.get(src)[windowSize] = 0;
-        }
+//        if (src.contains("ds_1")) {
+//            latencies.get(src)[windowSize] = 150;
+//        } else {
+//            latencies.get(src)[windowSize] = 20;
+//        }
     }
     
     public void SetDataSourceIp(String src, String ip) {

@@ -92,8 +92,8 @@ public final class Bootstrap {
         
         if (Latency.getInstance().NeedDelay()) {
             System.out.println("----- start ping thread -----");
-            // Thread pingThread = new Thread(new LatencyCollector());
-            // pingThread.start();
+            Thread pingThread = new Thread(new LatencyCollector());
+            pingThread.start();
         }
     }
     

@@ -126,9 +126,23 @@ public final class ExecutorEngine implements AutoCloseable {
     }
     
     private <I, O> List<O> parallelExecute(final Iterator<ExecutionGroup<I>> executionGroups, final ExecutorCallback<I, O> firstCallback, final ExecutorCallback<I, O> callback) throws SQLException {
+        List<O> result = null;
         ExecutionGroup<I> firstInputs = executionGroups.next();
         Collection<Future<Collection<O>>> restResultFutures = asyncExecute(executionGroups, callback);
-        return getGroupResults(syncExecute(firstInputs, null == firstCallback ? callback : firstCallback), restResultFutures);
+        // necessary to collect all subtxns' execution result and clean the result streaming
+        try {
+            result = getGroupResults(syncExecute(firstInputs, null == firstCallback ? callback : firstCallback), restResultFutures);
+        } catch (final SQLException ex) {
+            for (Future<Collection<O>> each : restResultFutures) {
+                try {
+                    each.get();
+                } catch (final InterruptedException | ExecutionException ignored) {
+                    
+                }
+            }
+            return throwException(ex);
+        }
+        return result;
     }
     
     private <I, O> Collection<O> syncExecute(final ExecutionGroup<I> executionGroup, final ExecutorCallback<I, O> callback) throws SQLException {

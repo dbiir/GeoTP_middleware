@@ -241,15 +241,17 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                 String tableName = getTableNameFromSQLStatementContext(queryContext.getSqlStatementContext());
                 int key = getKeyFromSQLStatementContext(queryContext.getSqlStatementContext());
                 executionUnit.updateProbability(Objects.requireNonNull(LocalLockTable.getInstance().getLockMetaData(tableName, key)).nonBlockProbability());
-                executionUnit.updateLocalExecuteLatency((int) Objects.requireNonNull(LocalLockTable.getInstance().getLockMetaData(tableName, key)).getLatency());
+//                executionUnit.updateLocalExecuteLatency((int) Objects.requireNonNull(LocalLockTable.getInstance().getLockMetaData(tableName, key)).getLatency());
                 executionUnit.addKeys(tableName, key);
             }
             
-            System.out.println("probability: " + executionUnit.getAbortProbability() + " latency: " + executionUnit.getLocalExecuteLatency());
+//            System.out.println("probability: " + executionUnit.getAbortProbability() + " latency: " + executionUnit.getLocalExecuteLatency());
             
             // pre-abort
             if (Math.random() < executionUnit.getAbortProbability()) {
-                return false;
+                if (groupUnits.size() > 1) {
+                    return false;
+                }
             }
             
             maxLatency = Math.max(maxLatency, executionUnit.getLocalExecuteLatency());
@@ -398,7 +400,7 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
             String dataSourceName = executionUnit.getDataSourceName();
             
             double localExecuteTime = Math.max(0, executionUnit.getRealExecuteLatency() - Latency.getInstance().GetLatency(dataSourceName));
-            System.out.println("local execution latency: " + localExecuteTime + "ms");
+//            System.out.println("data source: " + executionUnit.getDataSourceName() + " | local execution latency: " + localExecuteTime + "ms");
             
             if (isFinish && localExecuteTime < 1e-5) {
                 for (Map.Entry<String, List<Integer>> tableToKeys : executionUnit.getKeys().entrySet()) {
@@ -426,7 +428,7 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                     lockMetaData.incCount();
                     if (isFinish) {
                         double singleLatency = localExecuteTime * lockMetaData.getLatency() / Math.max(totalWeight, 0.0001);
-                        System.out.println("singleLatency: " + singleLatency + "ms; latency: " + lockMetaData.getLatency() + "ms; total weight: " + totalWeight + "ms");
+//                        System.out.println("singleLatency: " + singleLatency + "ms; latency: " + lockMetaData.getLatency() + "ms; total weight: " + totalWeight + "ms");
                         
                         if (singleLatency < networkThreshold) {
                             lockMetaData.incSuccessCount();
@@ -446,9 +448,9 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
         
         @Override
         protected List<ExecuteResult> executeSQL(final String sql, final Statement statement, final ConnectionMode connectionMode, final DatabaseType storageType) throws SQLException {
+            boolean resultsAvailable = false;
             try {
-                // boolean resultsAvailable = statement.execute(sql+";PREPARE;");
-                boolean resultsAvailable = statement.execute(sql);
+                resultsAvailable = statement.execute(sql);
                 
                 List<ExecuteResult> list = new ArrayList<>();
                 while (true) {
@@ -470,7 +472,8 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                 
                 return list;
             } catch (SQLException e) {
-                System.out.println("sql: " + sql);
+                // System.out.println("sql: " + sql);
+                overlookResult(resultsAvailable, statement);
                 e.printStackTrace();
                 throw e;
             } finally {
@@ -486,6 +489,28 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
         
         private QueryResult createQueryResult(final ResultSet resultSet, final ConnectionMode connectionMode, final DatabaseType storageType) throws SQLException {
             return ConnectionMode.MEMORY_STRICTLY == connectionMode ? new JDBCStreamQueryResult(resultSet) : new JDBCMemoryQueryResult(resultSet, storageType);
+        }
+        
+        private void overlookResult(boolean resultsAvailable, final Statement statement) throws SQLException {
+            try {
+                while (true) {
+                    if (resultsAvailable) {
+                        ResultSet rs = statement.getResultSet();
+                    } else {
+                        int update_cnt = statement.getUpdateCount();
+                        // TODO:
+                        if (update_cnt != -1) {
+                        } else {
+                            break;
+                        }
+                    }
+                    
+                    resultsAvailable = statement.getMoreResults();
+                }
+            } catch (final SQLException ex) {
+                ex.printStackTrace();
+                throw ex;
+            }
         }
     }
     
