@@ -71,11 +71,14 @@ public final class BackendTransactionManager implements TransactionManager {
         for (TransactionHook each : transactionHooks) {
             each.beforeBegin(getTransactionContext());
         }
+        long startTime = System.nanoTime();
         if (TransactionType.LOCAL == transactionType || null == shardingSphereTransactionManager) {
             localTransactionManager.begin();
         } else {
             shardingSphereTransactionManager.begin();
         }
+        long endTime = System.nanoTime();
+        System.out.println("begin consume: " + (endTime - startTime) / 1000000 + " ms");
         for (TransactionHook each : transactionHooks) {
             each.afterBegin(getTransactionContext());
         }
@@ -88,11 +91,14 @@ public final class BackendTransactionManager implements TransactionManager {
         }
         if (connection.getConnectionSession().getTransactionStatus().isInTransaction()) {
             try {
+                long startTime = System.nanoTime();
                 if (TransactionType.LOCAL == transactionType || null == shardingSphereTransactionManager) {
                     localTransactionManager.commit();
                 } else {
                     shardingSphereTransactionManager.commit(connection.getConnectionSession().getTransactionStatus().isRollbackOnly());
                 }
+                long endTime = System.nanoTime();
+                System.out.println("commit consume: " + (endTime - startTime) / 1000000 + " ms");
             } finally {
                 for (TransactionHook each : transactionHooks) {
                     each.afterCommit(connection.getCachedConnections().values(), getTransactionContext(), ProxyContext.getInstance().getContextManager().getInstanceContext().getLockContext());

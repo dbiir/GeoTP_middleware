@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.shardingsphere.proxy.backend.statistics.monitor;
+package org.apache.shardingsphere.infra.statistics.monitor;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -90,7 +90,7 @@ public final class LockMetaData {
             count /= 2;
         }
         // TODO:
-//        System.out.println("successCount: " + successCount + "; count: " + count + "; processing: " + processing);
+        // System.out.println("successCount: " + successCount + "; count: " + count + "; processing: " + processing);
         return Math.pow(successCount * 1.0 / count, processing);
     }
     

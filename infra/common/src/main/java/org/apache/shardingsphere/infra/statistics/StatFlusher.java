@@ -15,19 +15,21 @@
  * limitations under the License.
  */
 
-package org.apache.shardingsphere.proxy.backend.statistics;
+package org.apache.shardingsphere.infra.statistics;
 
 import lombok.NoArgsConstructor;
 import lombok.SneakyThrows;
-import org.apache.shardingsphere.proxy.backend.exception.FileIOException;
-import org.apache.shardingsphere.proxy.backend.statistics.monitor.LocalLockTable;
-import org.apache.shardingsphere.proxy.backend.statistics.network.Latency;
+import org.apache.shardingsphere.infra.statistics.monitor.LocalLockTable;
+import org.apache.shardingsphere.infra.statistics.network.Latency;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.Date;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Objects;
 
 @NoArgsConstructor
 public final class StatFlusher implements Runnable {
@@ -92,7 +94,7 @@ public final class StatFlusher implements Runnable {
             output.write(exportedData.getBytes());
             output.flush();
         } catch (final IOException ex) {
-            throw new FileIOException(ex);
+            throw ex;
         }
     }
     

@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.shardingsphere.proxy.backend.statistics.network;
+package org.apache.shardingsphere.infra.statistics.network;
 
 import lombok.Getter;
 
@@ -46,7 +46,6 @@ public final class Latency {
     public void AddDataSource(String src) {
         System.out.println("Add Source " + src);
         latencies.put(src, new double[windowSize + 1]);
-        // TODO: hard code
 //        if (src.contains("ds_1")) {
 //            latencies.get(src)[windowSize] = 150;
 //        } else {
@@ -103,7 +102,18 @@ public final class Latency {
     }
     
     public boolean NeedDelay() {
-        return algorithm.contains("harp");
+        return algorithm.equals("harp") || algorithm.equals("aharp");
+    }
+
+    public boolean NeedLatencyPredict() { return algorithm.equals("harp_lp") || algorithm.equals("aharp_lp"); }
+
+    public boolean NeedPreAbort() { return algorithm.equals("harp_pa") || algorithm.equals("aharp_pa"); }
+
+    public boolean NeedLatencyPredictionAndPreAbort() { return algorithm.equals("harp_lppa") || algorithm.equals("aharp_lppa"); }
+
+    public boolean asyncPreparation() {
+        return algorithm.equals("aharp") || algorithm.equals("aharp_lp") || algorithm.equals("aharp_pa") ||
+                algorithm.equals("aharp_lppa") || algorithm.equals("a");
     }
     
     @Override

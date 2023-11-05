@@ -32,5 +32,6 @@
         <module>atomikos</module>
         <module>narayana</module>
         <module>bitronix</module>
+        <module>harp</module>
     </modules>
 </project>

@@ -17,6 +17,7 @@
 
 package org.apache.shardingsphere.proxy.frontend.mysql.command.query.text.query;
 
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.shardingsphere.infra.binder.QueryContext;
 import org.apache.shardingsphere.infra.binder.SQLStatementContextFactory;
@@ -32,6 +33,7 @@ import org.apache.shardingsphere.infra.executor.kernel.model.ExecutionGroupConte
 import org.apache.shardingsphere.infra.executor.kernel.model.ExecutionGroupReportContext;
 import org.apache.shardingsphere.infra.executor.sql.context.ExecutionContext;
 import org.apache.shardingsphere.infra.executor.sql.context.ExecutionUnit;
+import org.apache.shardingsphere.infra.executor.sql.context.SQLUnit;
 import org.apache.shardingsphere.infra.executor.sql.execute.engine.ConnectionMode;
 import org.apache.shardingsphere.infra.executor.sql.execute.engine.SQLExecutorExceptionHandler;
 import org.apache.shardingsphere.infra.executor.sql.execute.engine.driver.jdbc.JDBCExecutionUnit;
@@ -62,9 +64,9 @@ import org.apache.shardingsphere.proxy.backend.response.header.query.QueryHeader
 import org.apache.shardingsphere.proxy.backend.response.header.query.QueryResponseHeader;
 import org.apache.shardingsphere.proxy.backend.response.header.update.UpdateResponseHeader;
 import org.apache.shardingsphere.proxy.backend.session.ConnectionSession;
-import org.apache.shardingsphere.proxy.backend.statistics.monitor.LocalLockTable;
-import org.apache.shardingsphere.proxy.backend.statistics.monitor.LockMetaData;
-import org.apache.shardingsphere.proxy.backend.statistics.network.Latency;
+import org.apache.shardingsphere.infra.statistics.monitor.LocalLockTable;
+import org.apache.shardingsphere.infra.statistics.monitor.LockMetaData;
+import org.apache.shardingsphere.infra.statistics.network.Latency;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.dml.UpdateStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.util.SQLUtils;
@@ -107,6 +109,8 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
     private ExecutionContext anyExecutionContext;
     
     private boolean isBatchInsert;
+    @Setter
+    private boolean isLastQuery;
     
     public MySQLMultiStatementsHandler(final ConnectionSession connectionSession, final SQLStatement sqlStatementSample, final String sql, boolean isBatchInsert) {
         jdbcExecutor = new JDBCExecutor(BackendExecutorContext.getInstance().getExecutorEngine(), connectionSession.getConnectionContext());
@@ -127,6 +131,7 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
         }
         this.sqlStatements = null;
         this.isBatchInsert = isBatchInsert;
+        isLastQuery = SQLUtils.isLastQuery(sql);
     }
     
     public MySQLMultiStatementsHandler(final ConnectionSession connectionSession, final List<SQLStatement> sqlStatements, final String sql, boolean isBatchInsert) {
@@ -138,7 +143,8 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
         this.isBatchInsert = isBatchInsert;
         // Pattern pattern = sqlStatementSample instanceof UpdateStatement ? MULTI_UPDATE_STATEMENTS : MULTI_DELETE_STATEMENTS;
         List<String> sqls = SQLUtils.splitMultiSQL(sql);
-        
+        isLastQuery = SQLUtils.isLastQuery(sql);
+
         assert (sqlStatements.size() == sqls.size());
         
         Map<String, List<ExecutionUnit>> groupExecuteUnits = new HashMap<>();
@@ -155,6 +161,12 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
             }
             
             dataSourcesToQueryContext.computeIfAbsent(dataSourceName, unused -> new LinkedList<>()).add(executionContext.getQueryContext());
+        }
+
+        for (Map.Entry<String, Connection> entry : connectionSession.getBackendConnection().getCachedConnections().entries()) {
+            String dataSourceName = entry.getKey().split("\\.")[1];
+            ExecutionUnit unit = new ExecutionUnit(dataSourceName, new SQLUnit());
+            groupExecuteUnits.computeIfAbsent(dataSourceName, unused -> new LinkedList<>()).add(unit);
         }
         
         for (List<ExecutionUnit> each : groupExecuteUnits.values()) {
@@ -216,6 +228,12 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                 throw new SQLException("this transaction is most likely to timeout, pre-abort in harp");
             }
         }
+
+        boolean onePhase = executionGroupContext.getInputGroups().size() == 1;
+        for (ExecutionGroup<JDBCExecutionUnit> each: executionGroupContext.getInputGroups()) {
+            ExecutionUnit executionUnit = each.getInputs().get(0).getExecutionUnit();
+            executionUnit.getSqlUnit().setLastQueryComment(onePhase);
+        }
         
         return executeMultiStatements(executionGroupContext);
     }
@@ -240,12 +258,16 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
             for (QueryContext queryContext : dataSourcesToQueryContext.get(dataSourceName)) {
                 String tableName = getTableNameFromSQLStatementContext(queryContext.getSqlStatementContext());
                 int key = getKeyFromSQLStatementContext(queryContext.getSqlStatementContext());
-                executionUnit.updateProbability(Objects.requireNonNull(LocalLockTable.getInstance().getLockMetaData(tableName, key)).nonBlockProbability());
-//                executionUnit.updateLocalExecuteLatency((int) Objects.requireNonNull(LocalLockTable.getInstance().getLockMetaData(tableName, key)).getLatency());
+                if (Latency.getInstance().NeedPreAbort() || Latency.getInstance().NeedLatencyPredictionAndPreAbort()) {
+                    executionUnit.updateProbability(Objects.requireNonNull(LocalLockTable.getInstance().getLockMetaData(tableName, key)).nonBlockProbability());
+                }
+                if (Latency.getInstance().NeedLatencyPredict() || Latency.getInstance().NeedLatencyPredictionAndPreAbort()){
+                    executionUnit.updateLocalExecuteLatency((int) Objects.requireNonNull(LocalLockTable.getInstance().getLockMetaData(tableName, key)).getLatency());
+                }
                 executionUnit.addKeys(tableName, key);
             }
             
-//            System.out.println("probability: " + executionUnit.getAbortProbability() + " latency: " + executionUnit.getLocalExecuteLatency());
+            // System.out.println("probability: " + executionUnit.getAbortProbability() + " latency: " + executionUnit.getLocalExecuteLatency());
             
             // pre-abort
             if (Math.random() < executionUnit.getAbortProbability()) {
@@ -351,7 +373,10 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
         } else {
             JDBCExecutorCallback<List<ExecuteResult>> callback = new BatchedJDBCExecutorCallback(storageTypes, sqlStatementSample, isExceptionThrown);
             try {
+                long start = System.nanoTime() / 1000000;
                 List<List<ExecuteResult>> executeResults = jdbcExecutor.execute(executionGroupContext, callback);
+//                System.out.println("exectution time: " + (System.nanoTime() / 1000000 - start) + "ms; " + System.nanoTime() / 1000000 + "ms");
+
                 feedback((List<ExecutionGroup<JDBCExecutionUnit>>) executionGroupContext.getInputGroups(), true);
                 boolean first = false;
                 for (List<ExecuteResult> each : executeResults) {
@@ -400,8 +425,7 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
             String dataSourceName = executionUnit.getDataSourceName();
             
             double localExecuteTime = Math.max(0, executionUnit.getRealExecuteLatency() - Latency.getInstance().GetLatency(dataSourceName));
-//            System.out.println("data source: " + executionUnit.getDataSourceName() + " | local execution latency: " + localExecuteTime + "ms");
-            
+
             if (isFinish && localExecuteTime < 1e-5) {
                 for (Map.Entry<String, List<Integer>> tableToKeys : executionUnit.getKeys().entrySet()) {
                     for (Integer key : tableToKeys.getValue()) {
@@ -428,8 +452,7 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                     lockMetaData.incCount();
                     if (isFinish) {
                         double singleLatency = localExecuteTime * lockMetaData.getLatency() / Math.max(totalWeight, 0.0001);
-//                        System.out.println("singleLatency: " + singleLatency + "ms; latency: " + lockMetaData.getLatency() + "ms; total weight: " + totalWeight + "ms");
-                        
+
                         if (singleLatency < networkThreshold) {
                             lockMetaData.incSuccessCount();
                             Objects.requireNonNull(LocalLockTable.getInstance().getLockMetaData(tableToKeys.getKey(), key)).updateLatency(singleLatency);
@@ -450,7 +473,9 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
         protected List<ExecuteResult> executeSQL(final String sql, final Statement statement, final ConnectionMode connectionMode, final DatabaseType storageType) throws SQLException {
             boolean resultsAvailable = false;
             try {
+                long start = System.nanoTime();
                 resultsAvailable = statement.execute(sql);
+                System.out.println("True execute time: " + ((System.nanoTime() - start) / 1000) + "us");
                 
                 List<ExecuteResult> list = new ArrayList<>();
                 while (true) {
@@ -459,7 +484,6 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                         list.add(createQueryResult(rs, connectionMode, storageType));
                     } else {
                         int update_cnt = statement.getUpdateCount();
-                        // TODO:
                         if (update_cnt != -1) {
                             list.add(new UpdateResult(update_cnt, 0));
                         } else {

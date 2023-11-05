@@ -60,4 +60,12 @@ public final class SQLUnit {
         parameters.addAll(other.getParameters());
         tableRouteMappers.addAll(other.getTableRouteMappers());
     }
+
+    public void setLastQueryComment(boolean onePhase) {
+        if (onePhase) {
+            sql = "/*last one phase query*/" + sql;
+        } else {
+            sql = "/*last query*/" + sql;
+        }
+    }
 }

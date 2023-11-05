@@ -20,6 +20,7 @@ package org.apache.shardingsphere.transaction.xa.spi;
 import org.apache.shardingsphere.infra.util.spi.type.typed.TypedSPI;
 
 import javax.sql.XADataSource;
+import javax.transaction.RollbackException;
 import javax.transaction.TransactionManager;
 
 /**
@@ -53,7 +54,7 @@ public interface XATransactionManagerProvider extends TypedSPI, AutoCloseable {
      * 
      * @param singleXAResource single XA resource
      */
-    void enlistResource(SingleXAResource singleXAResource);
+    void enlistResource(SingleXAResource singleXAResource) throws RollbackException;
     
     /**
      * Get transaction manager.

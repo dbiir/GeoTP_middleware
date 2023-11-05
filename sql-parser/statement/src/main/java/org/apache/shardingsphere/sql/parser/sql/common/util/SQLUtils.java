@@ -35,6 +35,7 @@ import org.apache.shardingsphere.sql.parser.sql.common.value.literal.impl.Number
 import org.apache.shardingsphere.sql.parser.sql.common.value.literal.impl.OtherLiteralValue;
 import org.apache.shardingsphere.sql.parser.sql.common.value.literal.impl.StringLiteralValue;
 
+import javax.transaction.xa.Xid;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.LinkedList;
@@ -62,6 +63,8 @@ public final class SQLUtils {
     private static final Pattern ANY_CHARACTER_PATTERN = Pattern.compile("^%|([^\\\\])%");
     
     private static final Pattern ANY_CHARACTER_ESCAPE_PATTERN = Pattern.compile("\\\\%");
+
+    private static final char[] HEX_DIGITS = new char[]{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
     
     /**
      * Get exactly number value and type.
@@ -273,5 +276,67 @@ public final class SQLUtils {
         }
         
         return result;
+    }
+
+    private static String getComment(final String sql) {
+        String result = "";
+        if (sql.startsWith(COMMENT_PREFIX)) {
+            result = sql.substring(2, sql.indexOf(COMMENT_SUFFIX));
+        }
+
+        return result;
+    }
+
+    public static boolean isLastQuery(final String sql) {
+        String comment = getComment(sql);
+        return comment.contains("last query");
+    }
+
+    public static void appendAsHex(StringBuilder builder, int value) {
+        if (value == 0) {
+            builder.append("0x0");
+        } else {
+            int shift = 32;
+            boolean nonZeroFound = false;
+            builder.append("0x");
+
+            do {
+                shift -= 4;
+                byte nibble = (byte)(value >>> shift & 15);
+                if (nonZeroFound) {
+                    builder.append(HEX_DIGITS[nibble]);
+                } else if (nibble != 0) {
+                    builder.append(HEX_DIGITS[nibble]);
+                    nonZeroFound = true;
+                }
+            } while(shift != 0);
+        }
+    }
+
+    public static void appendAsHex(StringBuilder builder, byte[] bytes) {
+        builder.append("0x");
+
+        for (byte b : bytes) {
+            builder.append(HEX_DIGITS[b >>> 4 & 15]).append(HEX_DIGITS[b & 15]);
+        }
+    }
+
+    public static String xidToHex(Xid xid) {
+        StringBuilder builder = new StringBuilder();
+        byte[] gtrid = xid.getGlobalTransactionId();
+        byte[] btrid = xid.getBranchQualifier();
+        if (gtrid != null) {
+            SQLUtils.appendAsHex(builder, gtrid);
+        }
+
+        builder.append(',');
+        if (btrid != null) {
+            SQLUtils.appendAsHex(builder, btrid);
+        }
+
+        builder.append(',');
+        SQLUtils.appendAsHex(builder, xid.getFormatId());
+
+        return builder.toString();
     }
 }

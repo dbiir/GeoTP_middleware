@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.apache.shardingsphere.proxy.backend.statistics.network;
+package org.apache.shardingsphere.infra.statistics.network;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;

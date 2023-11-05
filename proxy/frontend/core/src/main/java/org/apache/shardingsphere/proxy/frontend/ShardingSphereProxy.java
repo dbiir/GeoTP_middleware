@@ -17,6 +17,7 @@
 
 package org.apache.shardingsphere.proxy.frontend;
 
+import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.ChannelFuture;
@@ -30,19 +31,23 @@ import io.netty.channel.epoll.EpollServerDomainSocketChannel;
 import io.netty.channel.epoll.EpollServerSocketChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.channel.unix.DomainSocketAddress;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.shardingsphere.infra.config.props.ConfigurationPropertyKey;
+import org.apache.shardingsphere.infra.statistics.network.Latency;
 import org.apache.shardingsphere.proxy.backend.context.BackendExecutorContext;
 import org.apache.shardingsphere.proxy.backend.context.ProxyContext;
+import org.apache.shardingsphere.proxy.frontend.netty.AsyncMessageHandlerInitializer;
 import org.apache.shardingsphere.proxy.frontend.netty.ServerHandlerInitializer;
 import org.apache.shardingsphere.proxy.frontend.protocol.FrontDatabaseProtocolTypeFactory;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * ShardingSphere-Proxy.
@@ -53,7 +58,9 @@ public final class ShardingSphereProxy {
     private EventLoopGroup bossGroup;
     
     private EventLoopGroup workerGroup;
-    
+
+    private EventLoopGroup asyncGroup;
+
     public ShardingSphereProxy() {
         createEventLoopGroup();
         Runtime.getRuntime().addShutdownHook(new Thread(this::close));
@@ -103,9 +110,30 @@ public final class ShardingSphereProxy {
         for (String address : addresses) {
             futures.add(bootstrap.bind(address, port).sync());
         }
+
+        Map<String, String> ips = Latency.getInstance().getSrcToIp();
+        for (Map.Entry<String, String> each: ips.entrySet()) {
+            startAsyncMessageInternal(3308, each.getValue());
+        }
+
         return futures;
     }
-    
+
+    @SneakyThrows(InterruptedException.class)
+    public void startAsyncMessageInternal(final int port, final String dst_address) throws InterruptedException {
+        Bootstrap bootstrap = new Bootstrap();
+        bootstrap.group(asyncGroup)
+                .channel(NioSocketChannel.class)
+                .handler(new AsyncMessageHandlerInitializer())
+                .option(ChannelOption.SO_KEEPALIVE, true)
+                .option(ChannelOption.SO_RCVBUF, 16 * 1024)
+                .option(ChannelOption.SO_SNDBUF, 16 * 1024);
+
+        // connect to agent
+        bootstrap.connect(dst_address, port).sync();
+        System.out.println("connect to agent success, ip: " + dst_address);
+    }
+
     private ChannelFuture startDomainSocket(final String socketPath) {
         ServerBootstrap bootstrap = new ServerBootstrap();
         initServerBootstrap(bootstrap, new DomainSocketAddress(socketPath));
@@ -122,6 +150,7 @@ public final class ShardingSphereProxy {
     private void createEventLoopGroup() {
         bossGroup = Epoll.isAvailable() ? new EpollEventLoopGroup(1) : new NioEventLoopGroup(1);
         workerGroup = getWorkerGroup();
+        asyncGroup = new NioEventLoopGroup();
     }
     
     private EventLoopGroup getWorkerGroup() {
@@ -142,7 +171,7 @@ public final class ShardingSphereProxy {
                 .handler(new LoggingHandler(LogLevel.INFO))
                 .childHandler(new ServerHandlerInitializer(FrontDatabaseProtocolTypeFactory.getDatabaseType()));
     }
-    
+
     private void initServerBootstrap(final ServerBootstrap bootstrap, final DomainSocketAddress localDomainSocketAddress) {
         bootstrap.group(bossGroup, workerGroup)
                 .channel(EpollServerDomainSocketChannel.class)
@@ -154,6 +183,7 @@ public final class ShardingSphereProxy {
     private void close() {
         bossGroup.shutdownGracefully();
         workerGroup.shutdownGracefully();
+        asyncGroup.shutdownGracefully();
         BackendExecutorContext.getInstance().getExecutorEngine().close();
     }
 }

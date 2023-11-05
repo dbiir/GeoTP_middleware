@@ -18,6 +18,9 @@
 package org.apache.shardingsphere.transaction.xa.jta.datasource;
 
 import org.apache.shardingsphere.infra.database.type.DatabaseType;
+import org.apache.shardingsphere.infra.transactions.AgentAsyncXAManager;
+import org.apache.shardingsphere.infra.transactions.CustomXID;
+import org.apache.shardingsphere.infra.transactions.XATransactionState;
 import org.apache.shardingsphere.infra.util.reflection.ReflectionUtils;
 import org.apache.shardingsphere.infra.util.spi.type.typed.TypedSPILoader;
 import org.apache.shardingsphere.transaction.xa.jta.connection.XAConnectionWrapper;
@@ -33,6 +36,7 @@ import javax.transaction.RollbackException;
 import javax.transaction.Synchronization;
 import javax.transaction.SystemException;
 import javax.transaction.Transaction;
+import javax.transaction.xa.Xid;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Arrays;

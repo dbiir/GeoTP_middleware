@@ -18,6 +18,7 @@
 package org.apache.shardingsphere.proxy.backend.connector;
 
 import com.google.common.base.Preconditions;
+import lombok.Setter;
 import org.apache.shardingsphere.dialect.SQLExceptionTransformEngine;
 import org.apache.shardingsphere.infra.binder.QueryContext;
 import org.apache.shardingsphere.infra.binder.aware.CursorDefinitionAware;
@@ -77,6 +78,7 @@ import org.apache.shardingsphere.sharding.merge.common.IteratorStreamMergedResul
 import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.dml.DMLStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.dml.SelectStatement;
+import org.apache.shardingsphere.sql.parser.sql.common.util.SQLUtils;
 import org.apache.shardingsphere.sql.parser.sql.dialect.statement.mysql.dml.MySQLInsertStatement;
 import org.apache.shardingsphere.sqlfederation.rule.SQLFederationRule;
 import org.apache.shardingsphere.sqlfederation.spi.SQLFederationExecutor;
@@ -122,6 +124,9 @@ public final class DatabaseConnector implements DatabaseBackendHandler {
     private List<QueryHeader> queryHeaders;
     
     private MergedResult mergedResult;
+
+    @Setter
+    private boolean isLastQuery;
     
     public DatabaseConnector(final String driverType, final ShardingSphereDatabase database, final QueryContext queryContext, final BackendConnection backendConnection) {
         SQLStatementContext<?> sqlStatementContext = queryContext.getSqlStatementContext();
@@ -135,6 +140,7 @@ public final class DatabaseConnector implements DatabaseBackendHandler {
             DatabaseConnector.this.prepareCursorStatementContext((CursorAvailable) sqlStatementContext, backendConnection.getConnectionSession());
         }
         proxySQLExecutor = new ProxySQLExecutor(driverType, backendConnection, this);
+        isLastQuery = SQLUtils.isLastQuery(queryContext.getSql()); // is here?
     }
     
     private void failedIfBackendNotReady(final ConnectionSession connectionSession, final SQLStatementContext<?> sqlStatementContext) {

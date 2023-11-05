@@ -34,7 +34,7 @@ import org.apache.shardingsphere.infra.util.exception.external.sql.ShardingSpher
 import org.apache.shardingsphere.proxy.backend.context.ProxyContext;
 import org.apache.shardingsphere.proxy.backend.exception.BackendConnectionException;
 import org.apache.shardingsphere.proxy.backend.session.ConnectionSession;
-import org.apache.shardingsphere.proxy.backend.statistics.monitor.LocalLockTable;
+import org.apache.shardingsphere.infra.statistics.monitor.LocalLockTable;
 import org.apache.shardingsphere.proxy.frontend.command.executor.CommandExecutor;
 import org.apache.shardingsphere.proxy.frontend.command.executor.QueryCommandExecutor;
 import org.apache.shardingsphere.proxy.frontend.constant.LogMDCConstants;

@@ -113,19 +113,37 @@
 databaseName: sharding_db
 
 dataSources:
+#  ds_0:
+#    url: jdbc:mysql://9.134.213.233:3306/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
+#    username: shardingsphere
+#    password: Ss123!@#
+#    connectionTimeoutMilliseconds: 30000
+#    idleTimeoutMilliseconds: 60000
+#    maxLifetimeMilliseconds: 1800000
+#    maxPoolSize: 200
+#    minPoolSize: 1
+#  ds_1:
+#    url: jdbc:mysql://9.134.123.45:3306/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
+#    username: shardingsphere
+#    password: Ss123!@#
+#    connectionTimeoutMilliseconds: 30000
+#    idleTimeoutMilliseconds: 60000
+#    maxLifetimeMilliseconds: 1800000
+#    maxPoolSize: 200
+#    minPoolSize: 1
   ds_0:
-    url: jdbc:mysql://9.134.213.233:3306/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
-    username: shardingsphere
-    password: Ss123!@#
+    url: jdbc:mysql://9.134.213.233:6603/sharding_db?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
+    username: sharding
+    password: sharding
     connectionTimeoutMilliseconds: 30000
     idleTimeoutMilliseconds: 60000
     maxLifetimeMilliseconds: 1800000
     maxPoolSize: 200
     minPoolSize: 1
   ds_1:
-    url: jdbc:mysql://9.134.123.45:3306/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
-    username: shardingsphere
-    password: Ss123!@#
+    url: jdbc:mysql://9.134.123.45:6603/sharding_db?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
+    username: sharding
+    password: sharding
     connectionTimeoutMilliseconds: 30000
     idleTimeoutMilliseconds: 60000
     maxLifetimeMilliseconds: 1800000
