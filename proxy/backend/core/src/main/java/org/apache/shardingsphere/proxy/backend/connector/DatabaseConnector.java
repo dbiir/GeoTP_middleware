@@ -124,7 +124,7 @@ public final class DatabaseConnector implements DatabaseBackendHandler {
     private List<QueryHeader> queryHeaders;
     
     private MergedResult mergedResult;
-
+    
     @Setter
     private boolean isLastQuery;
     

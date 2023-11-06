@@ -25,6 +25,7 @@ import java.util.Map;
 public final class Latency {
     
     private static final Latency INSTANCE = new Latency(0.8, 20);
+    @Getter
     private String algorithm;
     private final HashMap<String, double[]> latencies;
     @Getter
@@ -46,11 +47,11 @@ public final class Latency {
     public void AddDataSource(String src) {
         System.out.println("Add Source " + src);
         latencies.put(src, new double[windowSize + 1]);
-//        if (src.contains("ds_1")) {
-//            latencies.get(src)[windowSize] = 150;
-//        } else {
-//            latencies.get(src)[windowSize] = 20;
-//        }
+        // if (src.contains("ds_1")) {
+        // latencies.get(src)[windowSize] = 150;
+        // } else {
+        // latencies.get(src)[windowSize] = 20;
+        // }
     }
     
     public void SetDataSourceIp(String src, String ip) {
@@ -104,13 +105,19 @@ public final class Latency {
     public boolean NeedDelay() {
         return algorithm.equals("harp") || algorithm.equals("aharp");
     }
-
-    public boolean NeedLatencyPredict() { return algorithm.equals("harp_lp") || algorithm.equals("aharp_lp"); }
-
-    public boolean NeedPreAbort() { return algorithm.equals("harp_pa") || algorithm.equals("aharp_pa"); }
-
-    public boolean NeedLatencyPredictionAndPreAbort() { return algorithm.equals("harp_lppa") || algorithm.equals("aharp_lppa"); }
-
+    
+    public boolean NeedLatencyPredict() {
+        return algorithm.equals("harp_lp") || algorithm.equals("aharp_lp");
+    }
+    
+    public boolean NeedPreAbort() {
+        return algorithm.equals("harp_pa") || algorithm.equals("aharp_pa");
+    }
+    
+    public boolean NeedLatencyPredictionAndPreAbort() {
+        return algorithm.equals("harp_lppa") || algorithm.equals("aharp_lppa");
+    }
+    
     public boolean asyncPreparation() {
         return algorithm.equals("aharp") || algorithm.equals("aharp_lp") || algorithm.equals("aharp_pa") ||
                 algorithm.equals("aharp_lppa") || algorithm.equals("a");

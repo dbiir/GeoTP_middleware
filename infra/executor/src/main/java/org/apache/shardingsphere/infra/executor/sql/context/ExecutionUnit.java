@@ -48,7 +48,7 @@ public final class ExecutionUnit {
     private int networkLatency;
     
     private int realExecuteLatency;
-
+    
     private long finishTime;
     
     private boolean isHarp = false;
@@ -101,8 +101,10 @@ public final class ExecutionUnit {
     public void SetDelayTime(long delayTime) {
         this.delayTime = delayTime;
     }
-
-    public void SetFinishTime(long finishTime) { this.finishTime = finishTime; }
+    
+    public void SetFinishTime(long finishTime) {
+        this.finishTime = finishTime;
+    }
     
     public void CombineExecutionUnit(ExecutionUnit other) {
         sqlUnit.CombineSQLUnit(other.getSqlUnit());

@@ -1,3 +1,20 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.apache.shardingsphere.transaction.xa.harp.manager;
 
 import com.atomikos.icatch.SysException;
@@ -17,10 +34,11 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 public class CustomTransactionManager implements TransactionManager, Referenceable, UserTransaction {
+    
     private static final CustomTransactionManager singleton = new CustomTransactionManager();
     private final Map<String, CustomTransactionImp> jtaTransactionToCoreTransactionMap; // Tid -> CustomTransactionImp
     private final Map<Thread, ThreadTransactionContext> contexts;
-
+    
     private static void raiseNoTransaction() {
         StringBuilder msg = new StringBuilder();
         msg.append("This method needs a transaction for the calling thread and none exists.\n");
@@ -33,72 +51,72 @@ public class CustomTransactionManager implements TransactionManager, Referenceab
         log.warn(msg.toString());
         throw new IllegalStateException(msg.toString());
     }
-
+    
     public static TransactionManager getTransactionManager() {
         return singleton;
     }
-
+    
     private CustomTransactionManager() {
         this.jtaTransactionToCoreTransactionMap = new ConcurrentHashMap<>(128, 0.75F, 128);
         this.contexts = new ConcurrentHashMap<>(128, 0.75F, 128);
     }
-
+    
     private void addToMap(String tid, CustomTransactionImp tx) {
-        synchronized(this.jtaTransactionToCoreTransactionMap) {
+        synchronized (this.jtaTransactionToCoreTransactionMap) {
             this.jtaTransactionToCoreTransactionMap.put(tid, tx);
         }
     }
-
+    
     private void removeFromMap(String tid) {
-        synchronized(this.jtaTransactionToCoreTransactionMap) {
+        synchronized (this.jtaTransactionToCoreTransactionMap) {
             this.jtaTransactionToCoreTransactionMap.remove(tid);
         }
     }
-
+    
     CustomTransactionImp getTransactionWithId(String tid) {
-        synchronized(this.jtaTransactionToCoreTransactionMap) {
+        synchronized (this.jtaTransactionToCoreTransactionMap) {
             return this.jtaTransactionToCoreTransactionMap.get(tid);
         }
     }
-
+    
     public Transaction getTransaction(String tid) {
         return this.getTransactionWithId(tid);
     }
-
+    
     public Transaction getTransaction() {
         return this.getCurrentTransaction();
     }
-
+    
     public CustomTransactionImp getCurrentTransaction() {
         return this.contexts.get(Thread.currentThread()) == null ? null : this.getOrCreateCurrentContext().getTransaction();
     }
-
+    
     private ThreadTransactionContext getOrCreateCurrentContext() {
         ThreadTransactionContext threadContext = this.contexts.get(Thread.currentThread());
         if (threadContext == null) {
             if (log.isDebugEnabled()) {
                 log.debug("creating new thread context");
             }
-
+            
             threadContext = new ThreadTransactionContext();
             this.setCurrentContext(threadContext);
         }
-
+        
         return threadContext;
     }
-
+    
     private void setCurrentContext(ThreadTransactionContext context) {
         if (log.isDebugEnabled()) {
             log.debug("changing current thread context to " + context);
         }
-
+        
         if (context == null) {
             throw new IllegalArgumentException("setCurrentContext() should not be called with a null context, clearCurrentContextForSuspension() should be used instead");
         } else {
             this.contexts.put(Thread.currentThread(), context);
         }
     }
-
+    
     private CustomTransactionImp establishTransaction(String tid) {
         CustomTransactionImp transaction = this.getTransactionWithId(tid);
         if (transaction == null) {
@@ -106,38 +124,38 @@ public class CustomTransactionManager implements TransactionManager, Referenceab
         }
         return transaction;
     }
-
+    
     private CustomTransactionImp createTransaction(String tid) {
         CustomTransactionImp ret = new CustomTransactionImp(tid);
         this.addToMap(tid, ret);
         return ret;
     }
-
+    
     public void committed(String tid) {
         this.removeFromMap(tid);
     }
-
+    
     public void rolledback(String tid) {
         this.removeFromMap(tid);
     }
-
+    
     @Override
     public Reference getReference() {
         return new Reference(this.getClass().getName(), new StringRefAddr("name", "TransactionManager"), TransactionManagerFactory.class.getName(), null);
     }
-
+    
     @Override
     public void begin() throws SystemException, NotSupportedException {
         CustomTransactionImp currentTx = this.getCurrentTransaction();
-        if (currentTx  != null) {
+        if (currentTx != null) {
             throw new NotSupportedException("nested transactions not supported");
         }
         String tid = String.valueOf(AgentAsyncXAManager.getInstance().fetchAndAddGlobalTid());
         currentTx = this.establishTransaction(tid);
         this.getOrCreateCurrentContext().setTransaction(currentTx);
-
+        
         ClearContextSynchronization clearContextSynchronization = new ClearContextSynchronization(currentTx);
-
+        
         try {
             currentTx.getSynchronizationScheduler().add(clearContextSynchronization, Scheduler.ALWAYS_LAST_POSITION - 1);
             currentTx.setActive(this.getOrCreateCurrentContext().getTimeout());
@@ -146,27 +164,27 @@ public class CustomTransactionManager implements TransactionManager, Referenceab
             throw ex;
         }
     }
-
+    
     @Override
     public void commit() throws RollbackException, HeuristicMixedException, HeuristicRollbackException, SecurityException, IllegalStateException, SystemException {
         Transaction tx = this.getTransaction();
         if (tx == null) {
             raiseNoTransaction();
         }
-
+        
         assert tx != null;
-        ClearContextSynchronization clearContextSynchronization = new ClearContextSynchronization((CustomTransactionImp)tx);
+        ClearContextSynchronization clearContextSynchronization = new ClearContextSynchronization((CustomTransactionImp) tx);
         try {
             tx.commit();
             clearContextSynchronization.afterCompletion(3);
-            committed(((CustomTransactionImp)tx).getTid());
+            committed(((CustomTransactionImp) tx).getTid());
         } catch (RollbackException | HeuristicMixedException | HeuristicRollbackException | SecurityException | IllegalStateException | SystemException ex) {
             clearContextSynchronization.afterCompletion(4);
-            rolledback(((CustomTransactionImp)tx).getTid());
+            rolledback(((CustomTransactionImp) tx).getTid());
             throw ex;
         }
     }
-
+    
     @Override
     public int getStatus() throws SystemException {
         Transaction tx = this.getTransaction();
@@ -176,23 +194,23 @@ public class CustomTransactionManager implements TransactionManager, Referenceab
         } else {
             ret = tx.getStatus();
         }
-
+        
         return ret;
     }
-
+    
     @Override
     public void resume(Transaction transaction) throws InvalidTransactionException, IllegalStateException, SystemException {
         if (transaction instanceof CustomTransactionImp) {
-            CustomTransactionImp ret = (CustomTransactionImp)transaction;
-
+            CustomTransactionImp ret = (CustomTransactionImp) transaction;
+            
             try {
-//                this.compositeTransactionManager.resume(tximp.getCT());
+                // this.compositeTransactionManager.resume(tximp.getCT());
             } catch (SysException var5) {
                 String msg = "Unexpected error while resuming the transaction in the calling thread";
                 log.error(msg, var5);
                 throw new ExtendedSystemException(msg, var5);
             }
-
+            
             ret.resumeEnlistedXaReources();
         } else {
             String msg = "The specified transaction object is invalid for this configuration: " + transaction;
@@ -200,34 +218,34 @@ public class CustomTransactionManager implements TransactionManager, Referenceab
             throw new InvalidTransactionException(msg);
         }
     }
-
+    
     @Override
     public void rollback() throws IllegalStateException, SecurityException, SystemException {
         Transaction tx = this.getTransaction();
         if (tx == null) {
             raiseNoTransaction();
         }
-
+        
         assert tx != null;
-        ClearContextSynchronization clearContextSynchronization = new ClearContextSynchronization((CustomTransactionImp)tx);
-
+        ClearContextSynchronization clearContextSynchronization = new ClearContextSynchronization((CustomTransactionImp) tx);
+        
         try {
             tx.rollback();
-            rolledback(((CustomTransactionImp)tx).getTid());
+            rolledback(((CustomTransactionImp) tx).getTid());
         } catch (SecurityException | IllegalStateException | SystemException ex) {
             throw ex;
         } finally {
             clearContextSynchronization.afterCompletion(4);
         }
     }
-
+    
     @Override
     public void setRollbackOnly() throws IllegalStateException, SystemException {
         Transaction tx = this.getTransaction();
         if (tx == null) {
             raiseNoTransaction();
         }
-
+        
         try {
             assert tx != null;
             tx.setRollbackOnly();
@@ -237,7 +255,7 @@ public class CustomTransactionManager implements TransactionManager, Referenceab
             throw new ExtendedSystemException(msg, var4);
         }
     }
-
+    
     @Override
     public void setTransactionTimeout(int seconds) throws SystemException {
         if (seconds >= 0) {
@@ -246,56 +264,57 @@ public class CustomTransactionManager implements TransactionManager, Referenceab
             assert false;
         }
     }
-
+    
     @Override
     public Transaction suspend() throws SystemException {
-        CustomTransactionImp ret = (CustomTransactionImp)this.getTransaction();
+        CustomTransactionImp ret = (CustomTransactionImp) this.getTransaction();
         if (ret != null) {
             ret.suspendEnlistedXaResources();
             this.clearCurrentContextForSuspension();
         }
-
+        
         return ret;
     }
-
+    
     private void clearCurrentContextForSuspension() {
         if (log.isDebugEnabled()) {
             log.debug("clearing current thread context: " + this.getOrCreateCurrentContext());
         }
-
+        
         this.contexts.remove(Thread.currentThread());
         if (log.isDebugEnabled()) {
             log.debug("cleared current thread context: " + this.getOrCreateCurrentContext());
         }
     }
-
+    
     private class ClearContextSynchronization implements Synchronization {
+        
         private final CustomTransactionImp currentTx;
-
+        
         public ClearContextSynchronization(CustomTransactionImp currentTx) {
             this.currentTx = currentTx;
         }
-
+        
         public void beforeCompletion() {
         }
-
+        
         public void afterCompletion(int status) {
             Iterator<Map.Entry<Thread, ThreadTransactionContext>> it = CustomTransactionManager.this.contexts.entrySet().iterator();
-
-            while(it.hasNext()) {
+            
+            while (it.hasNext()) {
                 Map.Entry<Thread, ThreadTransactionContext> entry = it.next();
                 ThreadTransactionContext context = entry.getValue();
                 if (context.getTransaction() == this.currentTx) {
                     if (log.isDebugEnabled()) {
                         log.debug("clearing thread context: " + context);
                     }
-
+                    
                     it.remove();
                     break;
                 }
             }
         }
-
+        
         public String toString() {
             return "a ClearContextSynchronization for " + this.currentTx;
         }

@@ -105,6 +105,7 @@ public final class Bootstrap {
             } else if (each.contains("--alg")) {
                 String[] split = each.split("=");
                 Latency.getInstance().SetAlgorithm(split[split.length - 1]);
+                System.out.println("algorithm is: " + Latency.getInstance().getAlgorithm());
             } else {
                 result.add(each);
             }

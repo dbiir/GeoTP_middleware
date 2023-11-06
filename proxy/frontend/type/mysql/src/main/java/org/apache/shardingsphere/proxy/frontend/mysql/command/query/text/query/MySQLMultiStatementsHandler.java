@@ -144,7 +144,7 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
         // Pattern pattern = sqlStatementSample instanceof UpdateStatement ? MULTI_UPDATE_STATEMENTS : MULTI_DELETE_STATEMENTS;
         List<String> sqls = SQLUtils.splitMultiSQL(sql);
         isLastQuery = SQLUtils.isLastQuery(sql);
-
+        
         assert (sqlStatements.size() == sqls.size());
         
         Map<String, List<ExecutionUnit>> groupExecuteUnits = new HashMap<>();
@@ -162,7 +162,7 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
             
             dataSourcesToQueryContext.computeIfAbsent(dataSourceName, unused -> new LinkedList<>()).add(executionContext.getQueryContext());
         }
-
+        
         for (Map.Entry<String, Connection> entry : connectionSession.getBackendConnection().getCachedConnections().entries()) {
             String dataSourceName = entry.getKey().split("\\.")[1];
             ExecutionUnit unit = new ExecutionUnit(dataSourceName, new SQLUnit());
@@ -228,9 +228,9 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                 throw new SQLException("this transaction is most likely to timeout, pre-abort in harp");
             }
         }
-
+        
         boolean onePhase = executionGroupContext.getInputGroups().size() == 1;
-        for (ExecutionGroup<JDBCExecutionUnit> each: executionGroupContext.getInputGroups()) {
+        for (ExecutionGroup<JDBCExecutionUnit> each : executionGroupContext.getInputGroups()) {
             ExecutionUnit executionUnit = each.getInputs().get(0).getExecutionUnit();
             executionUnit.getSqlUnit().setLastQueryComment(onePhase);
         }
@@ -261,7 +261,7 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                 if (Latency.getInstance().NeedPreAbort() || Latency.getInstance().NeedLatencyPredictionAndPreAbort()) {
                     executionUnit.updateProbability(Objects.requireNonNull(LocalLockTable.getInstance().getLockMetaData(tableName, key)).nonBlockProbability());
                 }
-                if (Latency.getInstance().NeedLatencyPredict() || Latency.getInstance().NeedLatencyPredictionAndPreAbort()){
+                if (Latency.getInstance().NeedLatencyPredict() || Latency.getInstance().NeedLatencyPredictionAndPreAbort()) {
                     executionUnit.updateLocalExecuteLatency((int) Objects.requireNonNull(LocalLockTable.getInstance().getLockMetaData(tableName, key)).getLatency());
                 }
                 executionUnit.addKeys(tableName, key);
@@ -375,8 +375,8 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
             try {
                 long start = System.nanoTime() / 1000000;
                 List<List<ExecuteResult>> executeResults = jdbcExecutor.execute(executionGroupContext, callback);
-//                System.out.println("exectution time: " + (System.nanoTime() / 1000000 - start) + "ms; " + System.nanoTime() / 1000000 + "ms");
-
+                // System.out.println("exectution time: " + (System.nanoTime() / 1000000 - start) + "ms; " + System.nanoTime() / 1000000 + "ms");
+                
                 feedback((List<ExecutionGroup<JDBCExecutionUnit>>) executionGroupContext.getInputGroups(), true);
                 boolean first = false;
                 for (List<ExecuteResult> each : executeResults) {
@@ -425,7 +425,7 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
             String dataSourceName = executionUnit.getDataSourceName();
             
             double localExecuteTime = Math.max(0, executionUnit.getRealExecuteLatency() - Latency.getInstance().GetLatency(dataSourceName));
-
+            
             if (isFinish && localExecuteTime < 1e-5) {
                 for (Map.Entry<String, List<Integer>> tableToKeys : executionUnit.getKeys().entrySet()) {
                     for (Integer key : tableToKeys.getValue()) {
@@ -452,7 +452,7 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                     lockMetaData.incCount();
                     if (isFinish) {
                         double singleLatency = localExecuteTime * lockMetaData.getLatency() / Math.max(totalWeight, 0.0001);
-
+                        
                         if (singleLatency < networkThreshold) {
                             lockMetaData.incSuccessCount();
                             Objects.requireNonNull(LocalLockTable.getInstance().getLockMetaData(tableToKeys.getKey(), key)).updateLatency(singleLatency);

@@ -1,3 +1,20 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.apache.shardingsphere.transaction.xa.harp.manager;
 
 import com.atomikos.datasource.ResourceException;
@@ -20,6 +37,7 @@ import java.util.Map;
 
 @Slf4j
 public class XAResourceTransaction implements ResourceTransaction {
+    
     static final long serialVersionUID = -8227293322090019196L;
     private String tid;
     private String root;
@@ -32,17 +50,17 @@ public class XAResourceTransaction implements ResourceTransaction {
     private transient XAResource xaresource;
     private transient boolean knownInResource;
     private transient int timeout;
-
+    
     private static String interpretErrorCode(String resourceName, String opCode, Xid xid, int errorCode) {
         String msg = XAExceptionHelper.convertErrorCodeToVerboseMessage(errorCode);
         return "XA resource '" + resourceName + "': " + opCode + " for XID '" + xid + "' raised " + errorCode + ": " + msg;
     }
-
+    
     private void setXid(Xid xid) {
         this.xid = xid;
         this.toString = "XAResourceTransaction: " + xid;
     }
-
+    
     XAResourceTransaction(XATransactionalResource resource, String tid, String root) {
         assert resource != null;
         this.resource = resource;
@@ -56,47 +74,47 @@ public class XAResourceTransaction implements ResourceTransaction {
         this.isXaSuspended = false;
         this.knownInResource = false;
     }
-
+    
     public int hashCode() {
         return this.xid.hashCode();
     }
-
+    
     public String toString() {
         return this.toString;
     }
-
+    
     void setState(TxState state) {
         if (state.isHeuristic()) {
             log.warn("Heuristic termination of " + this.toString() + " with state " + state);
         }
-
+        
         this.state = state;
     }
-
+    
     public Xid getXid() {
         return xid;
     }
-
+    
     public void setXAResource(XAResource xaresource) {
         if (log.isTraceEnabled()) {
             log.trace(this + ": about to switch to XAResource " + xaresource);
         }
-
+        
         this.xaresource = xaresource;
-
+        
         try {
             this.xaresource.setTransactionTimeout(this.timeout);
         } catch (XAException var4) {
             String msg = interpretErrorCode(this.resourcename, "setTransactionTimeout", this.xid, var4.errorCode);
             log.warn(msg, var4);
         }
-
+        
         if (log.isTraceEnabled()) {
             log.trace("XAResourceTransaction " + this.getXid() + ": switched to XAResource " + xaresource);
         }
-
+        
     }
-
+    
     public synchronized void suspend() throws ResourceException {
         if (this.state.equals(TxState.ACTIVE)) {
             try {
@@ -106,11 +124,11 @@ public class XAResourceTransaction implements ResourceTransaction {
                 String msg = interpretErrorCode(this.resourcename, "end", this.xid, var3.errorCode);
                 log.trace(msg, var3);
             }
-
+            
             this.setState(TxState.LOCALLY_DONE);
         }
     }
-
+    
     @Override
     public synchronized void resume() throws IllegalStateException, ResourceException {
         int flag;
@@ -122,34 +140,34 @@ public class XAResourceTransaction implements ResourceTransaction {
             if (this.knownInResource) {
                 throw new IllegalStateException("Wrong state for resume: " + this.state);
             }
-
+            
             flag = 0;
             logFlag = "XAResource.TMNOFLAGS";
         }
-
+        
         try {
             if (log.isDebugEnabled()) {
                 log.debug("XAResource.start ( " + this.xid + " , " + logFlag + " ) on resource " + this.resourcename + " represented by XAResource instance " + this.xaresource);
             }
-
+            
             this.xaresource.start(this.xid, flag);
         } catch (XAException var5) {
             String msg = interpretErrorCode(this.resourcename, "resume", this.xid, var5.errorCode);
             log.warn(msg, var5);
             throw new ResourceException(msg, var5);
         }
-
+        
         this.setState(TxState.ACTIVE);
         this.knownInResource = true;
     }
-
+    
     public void xaSuspend() throws XAException {
         if (!this.isXaSuspended) {
             try {
                 if (log.isDebugEnabled()) {
                     log.debug("XAResource.suspend ( " + this.xid + " , XAResource.TMSUSPEND ) on resource " + this.resourcename + " represented by XAResource instance " + this.xaresource);
                 }
-
+                
                 this.xaresource.end(this.xid, 33554432);
                 this.isXaSuspended = true;
             } catch (XAException var3) {
@@ -158,15 +176,15 @@ public class XAResourceTransaction implements ResourceTransaction {
                 throw var3;
             }
         }
-
+        
     }
-
+    
     public void xaResume() throws XAException {
         try {
             if (log.isDebugEnabled()) {
                 log.debug("XAResource.start ( " + this.xid + " , XAResource.TMRESUME ) on resource " + this.resourcename + " represented by XAResource instance " + this.xaresource);
             }
-
+            
             this.xaresource.start(this.xid, 134217728);
             this.isXaSuspended = false;
         } catch (XAException var3) {
@@ -175,23 +193,23 @@ public class XAResourceTransaction implements ResourceTransaction {
             throw var3;
         }
     }
-
+    
     public boolean isXaSuspended() {
         return this.isXaSuspended;
     }
-
+    
     public boolean isActive() {
         return this.state.equals(TxState.ACTIVE);
     }
-
+    
     public String getURI() {
         return Arrays.toString(this.xid.getBranchQualifier());
     }
-
+    
     public String getResourceName() {
         return this.resourcename;
     }
-
+    
     private void assertConnectionIsStillAlive() throws XAException {
         this.xaresource.isSameRM(this.xaresource);
     }

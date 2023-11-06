@@ -58,9 +58,9 @@ public final class ShardingSphereProxy {
     private EventLoopGroup bossGroup;
     
     private EventLoopGroup workerGroup;
-
+    
     private EventLoopGroup asyncGroup;
-
+    
     public ShardingSphereProxy() {
         createEventLoopGroup();
         Runtime.getRuntime().addShutdownHook(new Thread(this::close));
@@ -110,15 +110,15 @@ public final class ShardingSphereProxy {
         for (String address : addresses) {
             futures.add(bootstrap.bind(address, port).sync());
         }
-
+        
         Map<String, String> ips = Latency.getInstance().getSrcToIp();
-        for (Map.Entry<String, String> each: ips.entrySet()) {
+        for (Map.Entry<String, String> each : ips.entrySet()) {
             startAsyncMessageInternal(3308, each.getValue());
         }
-
+        
         return futures;
     }
-
+    
     @SneakyThrows(InterruptedException.class)
     public void startAsyncMessageInternal(final int port, final String dst_address) throws InterruptedException {
         Bootstrap bootstrap = new Bootstrap();
@@ -128,12 +128,12 @@ public final class ShardingSphereProxy {
                 .option(ChannelOption.SO_KEEPALIVE, true)
                 .option(ChannelOption.SO_RCVBUF, 16 * 1024)
                 .option(ChannelOption.SO_SNDBUF, 16 * 1024);
-
+        
         // connect to agent
         bootstrap.connect(dst_address, port).sync();
         System.out.println("connect to agent success, ip: " + dst_address);
     }
-
+    
     private ChannelFuture startDomainSocket(final String socketPath) {
         ServerBootstrap bootstrap = new ServerBootstrap();
         initServerBootstrap(bootstrap, new DomainSocketAddress(socketPath));
@@ -171,7 +171,7 @@ public final class ShardingSphereProxy {
                 .handler(new LoggingHandler(LogLevel.INFO))
                 .childHandler(new ServerHandlerInitializer(FrontDatabaseProtocolTypeFactory.getDatabaseType()));
     }
-
+    
     private void initServerBootstrap(final ServerBootstrap bootstrap, final DomainSocketAddress localDomainSocketAddress) {
         bootstrap.group(bossGroup, workerGroup)
                 .channel(EpollServerDomainSocketChannel.class)
