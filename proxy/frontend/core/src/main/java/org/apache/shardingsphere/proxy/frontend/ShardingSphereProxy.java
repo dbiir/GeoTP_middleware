@@ -111,9 +111,11 @@ public final class ShardingSphereProxy {
             futures.add(bootstrap.bind(address, port).sync());
         }
         
-        Map<String, String> ips = Latency.getInstance().getSrcToIp();
-        for (Map.Entry<String, String> each : ips.entrySet()) {
-            startAsyncMessageInternal(3308, each.getValue());
+        if (Latency.getInstance().asyncPreparation()) {
+            Map<String, String> ips = Latency.getInstance().getSrcToIp();
+            for (Map.Entry<String, String> each : ips.entrySet()) {
+                startAsyncMessageInternal(3308, each.getValue());
+            }
         }
         
         return futures;
@@ -150,7 +152,7 @@ public final class ShardingSphereProxy {
     private void createEventLoopGroup() {
         bossGroup = Epoll.isAvailable() ? new EpollEventLoopGroup(1) : new NioEventLoopGroup(1);
         workerGroup = getWorkerGroup();
-        asyncGroup = new NioEventLoopGroup();
+        asyncGroup = new NioEventLoopGroup(8);
     }
     
     private EventLoopGroup getWorkerGroup() {

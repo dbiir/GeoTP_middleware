@@ -63,7 +63,7 @@ public final class SQLUnit {
     
     public void setLastQueryComment(boolean onePhase) {
         if (onePhase) {
-            sql = "/*last one phase query*/" + sql;
+            // sql = "/*last one phase query*/" + sql;
         } else {
             sql = "/*last query*/" + sql;
         }

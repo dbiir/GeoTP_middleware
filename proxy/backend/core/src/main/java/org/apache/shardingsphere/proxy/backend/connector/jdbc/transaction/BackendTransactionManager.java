@@ -28,6 +28,7 @@ import org.apache.shardingsphere.transaction.api.TransactionType;
 import org.apache.shardingsphere.transaction.rule.TransactionRule;
 import org.apache.shardingsphere.transaction.spi.ShardingSphereTransactionManager;
 import org.apache.shardingsphere.transaction.spi.TransactionHook;
+import org.apache.shardingsphere.transaction.xa.XAShardingSphereTransactionManager;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -95,6 +96,9 @@ public final class BackendTransactionManager implements TransactionManager {
                 if (TransactionType.LOCAL == transactionType || null == shardingSphereTransactionManager) {
                     localTransactionManager.commit();
                 } else {
+                    if (shardingSphereTransactionManager instanceof XAShardingSphereTransactionManager) {
+                        ((XAShardingSphereTransactionManager) shardingSphereTransactionManager).setXATransactionPreAbort(connection.getPreAbort());
+                    }
                     shardingSphereTransactionManager.commit(connection.getConnectionSession().getTransactionStatus().isRollbackOnly());
                 }
                 long endTime = System.nanoTime();
@@ -121,6 +125,9 @@ public final class BackendTransactionManager implements TransactionManager {
                 if (TransactionType.LOCAL == transactionType || null == shardingSphereTransactionManager) {
                     localTransactionManager.rollback();
                 } else {
+                    if (shardingSphereTransactionManager instanceof XAShardingSphereTransactionManager) {
+                        ((XAShardingSphereTransactionManager) shardingSphereTransactionManager).setXATransactionPreAbort(connection.getPreAbort());
+                    }
                     shardingSphereTransactionManager.rollback();
                 }
             } finally {

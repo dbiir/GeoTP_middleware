@@ -75,6 +75,10 @@ public final class ConnectionSession {
     
     private QueryContext queryContext;
     
+    public void setPreAbort(boolean preAbort) {
+        backendConnection.setPreAbort(preAbort);
+    }
+    
     public ConnectionSession(final DatabaseType protocolType, final TransactionType initialTransactionType, final AttributeMap attributeMap) {
         this.protocolType = protocolType;
         transactionStatus = new TransactionStatus(initialTransactionType);

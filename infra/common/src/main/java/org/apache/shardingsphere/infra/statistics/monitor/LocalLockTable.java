@@ -85,6 +85,15 @@ public final class LocalLockTable {
         }
     }
     
+    public boolean isRegisterTable(String tableName) {
+        for (String each : DefaultTableNameToSize.keySet()) {
+            if (each.equals(tableName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
     private int getDefaultTableSize(String tableName) {
         if (DefaultTableNameToSize.get(tableName) != null) {
             return DefaultTableNameToSize.get(tableName);

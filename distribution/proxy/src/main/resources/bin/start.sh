@@ -198,11 +198,15 @@ if [[ $1 == -a ]] || [[ $1 == -p ]] || [[ $1 == -c ]] || [[ $1 == -f ]] || [[ $1
     done
 
 elif [ "$1" == "--harp" ]; then
-    HARP="alg=harp"
+    HARP="--alg=harp"
 elif [ "$1" == "--aharp" ]; then
-    HARP="alg=aharp"
+    HARP="--alg=aharp"
+elif [ "$1" == "--aharp_lppa" ]; then
+    HARP="--alg=aharp_lppa"
+elif [ "$1" == "--aharp_pa" ]; then
+    HARP="--alg=aharp_pa"
 elif [ "$1" == "--a" ]; then
-    HARP="alg=a"
+    HARP="--alg=a"
 
 elif [ $# == 1 ]; then
     PORT=$1

@@ -102,6 +102,13 @@ public final class ExecutionUnit {
         this.delayTime = delayTime;
     }
     
+    public void clearAnalysis() {
+        networkLatency = 0;
+        localExecuteLatency = 0;
+        abortProbability = 0.0;
+        delayTime = 0;
+    }
+    
     public void SetFinishTime(long finishTime) {
         this.finishTime = finishTime;
     }

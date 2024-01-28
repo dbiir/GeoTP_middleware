@@ -60,12 +60,14 @@ public abstract class JDBCExecutorCallback<T> implements ExecutorCallback<JDBCEx
     public final Collection<T> execute(final Collection<JDBCExecutionUnit> executionUnits, final boolean isTrunkThread) throws SQLException {
         // TODO It is better to judge whether need sane result before execute, can avoid exception thrown
         Collection<T> result = new LinkedList<>();
+        long startTime = System.nanoTime();
         for (JDBCExecutionUnit each : executionUnits) {
             T executeResult = execute(each, isTrunkThread);
             if (null != executeResult) {
                 result.add(executeResult);
             }
         }
+        System.out.println("JDBCExecutorCallback execution time: " + (System.nanoTime() - startTime) / 1000000 + " ms");
         return result;
     }
     
@@ -76,6 +78,7 @@ public abstract class JDBCExecutorCallback<T> implements ExecutorCallback<JDBCEx
      */
     @SneakyThrows
     private T execute(final JDBCExecutionUnit jdbcExecutionUnit, final boolean isTrunkThread) throws SQLException {
+        long start = System.nanoTime();
         SQLExecutorExceptionHandler.setExceptionThrown(isExceptionThrown);
         DatabaseType storageType = storageTypes.get(jdbcExecutionUnit.getExecutionUnit().getDataSourceName());
         DataSourceMetaData dataSourceMetaData = getDataSourceMetaData(jdbcExecutionUnit.getStorageResource().getConnection().getMetaData(), storageType);
@@ -102,6 +105,7 @@ public abstract class JDBCExecutorCallback<T> implements ExecutorCallback<JDBCEx
             executionUnit.setRealExecuteLatency((int) (executeTime / 1000000));
             sqlExecutionHook.finishSuccess();
             finishReport(jdbcExecutionUnit);
+            System.out.println("execute time: " + (System.nanoTime() - start) / 1000000 + " ms");
             return result;
         } catch (final SQLException ex) {
             if (!storageType.equals(protocolType)) {

@@ -222,10 +222,21 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
             }
         }
         
-        if (Latency.getInstance().NeedDelay()) {
-            boolean needPreAbort = analysisLatency((List<ExecutionGroup<JDBCExecutionUnit>>) executionGroupContext.getInputGroups());
-            if (!needPreAbort) {
-                throw new SQLException("this transaction is most likely to timeout, pre-abort in harp");
+        int blockCnt = 0;
+        while (Latency.getInstance().NeedDelay()) {
+            boolean normalExecute = analysisLatency((List<ExecutionGroup<JDBCExecutionUnit>>) executionGroupContext.getInputGroups());
+            if (blockCnt > 10) {
+                connectionSession.setPreAbort(true);
+                throw new SQLException("this transaction is likely to timeout, rollback after 10 tries");
+            }
+            if (normalExecute) {
+                break;
+            }
+            blockCnt++;
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
             }
         }
         
@@ -244,6 +255,11 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
             return true;
         }
         
+        for (ExecutionGroup<JDBCExecutionUnit> each : groupUnits) {
+            ExecutionUnit executionUnit = each.getInputs().get(0).getExecutionUnit();
+            executionUnit.clearAnalysis();
+        }
+        
         int maxLatency = 0;
         
         for (ExecutionGroup<JDBCExecutionUnit> each : groupUnits) {
@@ -257,6 +273,9 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
             
             for (QueryContext queryContext : dataSourcesToQueryContext.get(dataSourceName)) {
                 String tableName = getTableNameFromSQLStatementContext(queryContext.getSqlStatementContext());
+                if (!LocalLockTable.getInstance().isRegisterTable(tableName)) {
+                    continue;
+                }
                 int key = getKeyFromSQLStatementContext(queryContext.getSqlStatementContext());
                 if (Latency.getInstance().NeedPreAbort() || Latency.getInstance().NeedLatencyPredictionAndPreAbort()) {
                     executionUnit.updateProbability(Objects.requireNonNull(LocalLockTable.getInstance().getLockMetaData(tableName, key)).nonBlockProbability());
@@ -286,6 +305,9 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
             
             for (QueryContext queryContext : dataSourcesToQueryContext.get(dataSourceName)) {
                 String tableName = getTableNameFromSQLStatementContext(queryContext.getSqlStatementContext());
+                if (!LocalLockTable.getInstance().isRegisterTable(tableName)) {
+                    continue;
+                }
                 int key = getKeyFromSQLStatementContext(queryContext.getSqlStatementContext());
                 Objects.requireNonNull(LocalLockTable.getInstance().getLockMetaData(tableName, key)).incProcessing();
             }
@@ -358,6 +380,7 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
     
     private List<ResponseHeader> executeMultiStatements(final ExecutionGroupContext<JDBCExecutionUnit> executionGroupContext) throws SQLException {
         boolean isExceptionThrown = SQLExecutorExceptionHandler.isExceptionThrown();
+        long start = System.nanoTime();
         List<ResponseHeader> result = new LinkedList<>();
         Map<String, DatabaseType> storageTypes = metaDataContexts.getMetaData().getDatabase(connectionSession.getDatabaseName()).getResourceMetaData().getStorageTypes();
         if (isBatchInsert) {
@@ -373,9 +396,8 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
         } else {
             JDBCExecutorCallback<List<ExecuteResult>> callback = new BatchedJDBCExecutorCallback(storageTypes, sqlStatementSample, isExceptionThrown);
             try {
-                long start = System.nanoTime() / 1000000;
                 List<List<ExecuteResult>> executeResults = jdbcExecutor.execute(executionGroupContext, callback);
-                // System.out.println("exectution time: " + (System.nanoTime() / 1000000 - start) + "ms; " + System.nanoTime() / 1000000 + "ms");
+                System.out.println("JDBC execution time: " + (System.nanoTime() - start) / 1000000 + "ms;");
                 
                 feedback((List<ExecutionGroup<JDBCExecutionUnit>>) executionGroupContext.getInputGroups(), true);
                 boolean first = false;
@@ -475,7 +497,6 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
             try {
                 long start = System.nanoTime();
                 resultsAvailable = statement.execute(sql);
-                System.out.println("True execute time: " + ((System.nanoTime() - start) / 1000) + "us");
                 
                 List<ExecuteResult> list = new ArrayList<>();
                 while (true) {
@@ -492,6 +513,7 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                     }
                     
                     resultsAvailable = statement.getMoreResults();
+                    System.out.println("True execute time: " + ((System.nanoTime() - start) / 1000000) + "ms");
                 }
                 
                 return list;

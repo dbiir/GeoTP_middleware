@@ -209,6 +209,7 @@ public final class ProxySQLExecutor {
         
         boolean needStat = LocalLockTable.getInstance().needStatistic();
         boolean op = false;
+        boolean isHot = false;
         String tableName = "";
         int idx = -1;
         long startTime = 0;
@@ -217,32 +218,33 @@ public final class ProxySQLExecutor {
         if (sqlStatement instanceof SelectStatement) {
             if (((SelectStatement) sqlStatement).getFrom() != null && ((SelectStatement) sqlStatement).getFrom() instanceof SimpleTableSegment) {
                 tableName = ((SimpleTableSegment) ((SelectStatement) sqlStatement).getFrom()).getTableName().getIdentifier().getValue();
-                if (tableName.contains("usertable")) {
+                if (LocalLockTable.getInstance().isRegisterTable(tableName)) {
                     op = true;
+                    isHot = true;
                 }
             }
-            if (((SelectStatement) sqlStatement).getWhere().isPresent() &&
+            if (isHot && ((SelectStatement) sqlStatement).getWhere().isPresent() &&
                     ((SelectStatement) sqlStatement).getWhere().get().getExpr() instanceof BinaryOperationExpression) {
                 idx = (int) ((LiteralExpressionSegment) ((BinaryOperationExpression) ((SelectStatement) sqlStatement).getWhere().get().getExpr()).getRight()).getLiterals();
             }
         } else if (sqlStatement instanceof UpdateStatement) {
             if (((MySQLUpdateStatement) sqlStatement).getTable() != null && ((MySQLUpdateStatement) sqlStatement).getTable() instanceof SimpleTableSegment) {
                 tableName = ((SimpleTableSegment) ((MySQLUpdateStatement) sqlStatement).getTable()).getTableName().getIdentifier().getValue();
-                if (tableName.contains("usertable")) {
+                if (LocalLockTable.getInstance().isRegisterTable(tableName)) {
                     op = false;
                 }
             }
-            if (((UpdateStatement) sqlStatement).getWhere().isPresent() &&
-                    (((UpdateStatement) sqlStatement).getWhere().get().getExpr()) instanceof BinaryOperationExpression) {
-                idx = (int) ((LiteralExpressionSegment) ((BinaryOperationExpression) ((UpdateStatement) sqlStatement).getWhere().get().getExpr()).getRight()).getLiterals();
-            }
+            // if (((UpdateStatement) sqlStatement).getWhere().isPresent() &&
+            // (((UpdateStatement) sqlStatement).getWhere().get().getExpr()) instanceof BinaryOperationExpression) {
+            // idx = (int) ((LiteralExpressionSegment) ((BinaryOperationExpression) ((UpdateStatement) sqlStatement).getWhere().get().getExpr()).getRight()).getLiterals();
+            // }
         }
         LockMetaData lockMetaData = LocalLockTable.getInstance().getLockMetaData(tableName, idx);
         
-        boolean needPreAbort = analyseSingleSQL(tableName, idx);
-        if (!needPreAbort) {
-            throw new SQLException("this transaction is most likely to timeout, pre-abort in harp");
-        }
+        // boolean needPreAbort = analyseSingleSQL(tableName, idx);
+        // if (!needPreAbort) {
+        // throw new SQLException("this transaction is most likely to timeout, pre-abort in harp");
+        // }
         
         executeTransactionHooksBeforeExecuteSQL(backendConnection.getConnectionSession());
         if (needStat && idx >= 0)

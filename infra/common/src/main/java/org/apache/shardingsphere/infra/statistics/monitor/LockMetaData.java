@@ -24,7 +24,7 @@ import lombok.Setter;
 @Setter
 public final class LockMetaData {
     
-    private static final int countThreshold = 128;
+    private static final int countThreshold = 32;
     private static final double alpha = 0.75;
     
     private int readCount;
@@ -62,7 +62,7 @@ public final class LockMetaData {
         writeLatency = 0.01;
         latency = 0.01;
         startTime = System.nanoTime();
-        networkThreshold = networkLatency * 2; // hyper-parameter, 1RTT
+        networkThreshold = networkLatency * 2; // hyper-parameter, 2 * RTT
     }
     
     public synchronized void incCount() {
@@ -91,7 +91,7 @@ public final class LockMetaData {
         }
         // TODO:
         // System.out.println("successCount: " + successCount + "; count: " + count + "; processing: " + processing);
-        return Math.pow(successCount * 1.0 / count, processing);
+        return Math.pow(successCount * 1.0 / count, Math.max(processing - 1, 0));
     }
     
     public synchronized void updateLatency(double newLatency) {

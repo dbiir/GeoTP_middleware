@@ -22,6 +22,7 @@ import com.google.common.collect.LinkedHashMultimap;
 import com.google.common.collect.Multimap;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import org.apache.shardingsphere.infra.executor.sql.execute.engine.ConnectionMode;
 import org.apache.shardingsphere.infra.executor.sql.prepare.driver.jdbc.ExecutorJDBCConnectionManager;
 import org.apache.shardingsphere.infra.util.spi.ShardingSphereServiceLoader;
@@ -68,6 +69,9 @@ public final class BackendConnection implements ExecutorJDBCConnectionManager {
     private final AtomicBoolean closed = new AtomicBoolean(false);
     
     private final Collection<TransactionHook> transactionHooks = ShardingSphereServiceLoader.getServiceInstances(TransactionHook.class);
+    
+    @Setter
+    private boolean preAbort = false;
     
     @Override
     public List<Connection> getConnections(final String dataSourceName, final int connectionSize, final ConnectionMode connectionMode) throws SQLException {
@@ -163,6 +167,7 @@ public final class BackendConnection implements ExecutorJDBCConnectionManager {
             connection.setReadOnly(true);
         }
         if (null != connectionSession.getIsolationLevel()) {
+            System.out.println("replayTransactionOption: " + TransactionUtils.getTransactionIsolationLevel(connectionSession.getIsolationLevel()));
             connection.setTransactionIsolation(TransactionUtils.getTransactionIsolationLevel(connectionSession.getIsolationLevel()));
         }
     }
@@ -239,9 +244,11 @@ public final class BackendConnection implements ExecutorJDBCConnectionManager {
             if (!connectionSession.getTransactionStatus().isInConnectionHeldTransaction()) {
                 result.addAll(closeHandlers(true));
                 result.addAll(closeConnections(false));
+                preAbort = false;
             } else if (closed.get()) {
                 result.addAll(closeHandlers(true));
                 result.addAll(closeConnections(true));
+                preAbort = false;
             }
             if (result.isEmpty()) {
                 return;
@@ -258,6 +265,7 @@ public final class BackendConnection implements ExecutorJDBCConnectionManager {
             closed.set(true);
             closeHandlers(true);
             closeConnections(true);
+            preAbort = false;
         }
     }
     
@@ -336,5 +344,9 @@ public final class BackendConnection implements ExecutorJDBCConnectionManager {
             }
         }
         connectionSession.getRequiredSessionVariableRecorder().removeVariablesWithDefaultValue();
+    }
+    
+    public boolean getPreAbort() {
+        return preAbort;
     }
 }

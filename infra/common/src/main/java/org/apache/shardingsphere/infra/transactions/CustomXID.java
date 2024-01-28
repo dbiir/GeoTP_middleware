@@ -20,7 +20,7 @@ package org.apache.shardingsphere.infra.transactions;
 import java.util.Arrays;
 import java.util.List;
 
-import com.mysql.jdbc.jdbc2.optional.MysqlXid;
+import com.mysql.cj.jdbc.MysqlXid;
 import lombok.ToString;
 
 import javax.transaction.xa.Xid;

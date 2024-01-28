@@ -26,6 +26,7 @@ import org.apache.shardingsphere.transaction.core.ResourceDataSource;
 import org.apache.shardingsphere.transaction.exception.TransactionTimeoutException;
 import org.apache.shardingsphere.transaction.spi.ShardingSphereTransactionManager;
 import org.apache.shardingsphere.transaction.xa.jta.datasource.XATransactionDataSource;
+import org.apache.shardingsphere.transaction.xa.harp.manager.CustomTransactionImp;
 import org.apache.shardingsphere.transaction.xa.jta.datasource.checker.DataSourcePrivilegeChecker;
 import org.apache.shardingsphere.transaction.xa.spi.XATransactionManagerProvider;
 
@@ -52,6 +53,14 @@ public final class XAShardingSphereTransactionManager implements ShardingSphereT
     private final Map<String, XATransactionDataSource> cachedDataSources = new HashMap<>();
     
     private XATransactionManagerProvider xaTransactionManagerProvider;
+    
+    @SneakyThrows
+    public void setXATransactionPreAbort(boolean preAbort) {
+        // System.out.println("set pre abort: " + preAbort);
+        if (xaTransactionManagerProvider.getTransactionManager().getTransaction() instanceof CustomTransactionImp) {
+            ((CustomTransactionImp) xaTransactionManagerProvider.getTransactionManager().getTransaction()).setPreAbort(preAbort);
+        }
+    }
     
     @Override
     public void init(final Map<String, DatabaseType> databaseTypes, final Map<String, DataSource> dataSources, final String providerType) {

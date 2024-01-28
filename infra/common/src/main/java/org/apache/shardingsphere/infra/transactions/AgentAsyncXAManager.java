@@ -21,7 +21,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 public class AgentAsyncXAManager {
@@ -34,6 +34,7 @@ public class AgentAsyncXAManager {
         
         XATransactionState state;
         String errorInfo;
+        boolean preAbort = false;
         
         public XATransactionInfo(XATransactionState state) {
             this.state = state;
@@ -44,7 +45,7 @@ public class AgentAsyncXAManager {
         return Instance;
     }
     
-    private final HashMap<CustomXID, XATransactionInfo> XAStates = new HashMap<>();
+    private final ConcurrentHashMap<CustomXID, XATransactionInfo> XAStates = new ConcurrentHashMap<>(2048, 0.75f, 256);
     private long globalTid = 0;
     
     public synchronized long fetchAndAddGlobalTid() {
@@ -66,6 +67,7 @@ public class AgentAsyncXAManager {
                 XAStates.get(xid).setState(state);
             } else {
                 assert state == XATransactionState.ROLLBACK_ONLY;
+                XAStates.get(xid).setState(state);
                 log.info("rollback only" + xid);
             }
         } else {
@@ -82,8 +84,13 @@ public class AgentAsyncXAManager {
     
     public XATransactionState getStateByXid(CustomXID xid) {
         if (XAStates.get(xid) == null) {
-            System.out.println(xid.toString());
+            System.out.println("XA manager can not find" + xid.toString());
         }
         return XAStates.get(xid).getState();
+    }
+    
+    public void clearStateByXid(CustomXID xid) {
+        System.out.println("XA state size: " + XAStates.size());
+        XAStates.remove(xid);
     }
 }

@@ -17,7 +17,7 @@
 
 package org.apache.shardingsphere.transaction.xa.jta.connection.dialect;
 
-import com.mysql.jdbc.jdbc2.optional.JDBC4MysqlXAConnection;
+import com.mysql.cj.jdbc.MysqlXAConnection;
 import com.zaxxer.hikari.HikariDataSource;
 import org.apache.shardingsphere.infra.database.type.DatabaseType;
 import org.apache.shardingsphere.infra.util.spi.type.typed.TypedSPILoader;
@@ -45,7 +45,7 @@ class MySQLXAConnectionWrapperTest {
     @Test
     void assertWrap() throws SQLException {
         XAConnection actual = TypedSPILoader.getService(XAConnectionWrapper.class, databaseType.getType()).wrap(createXADataSource(), mockConnection());
-        assertThat(actual.getXAResource(), instanceOf(JDBC4MysqlXAConnection.class));
+        assertThat(actual.getXAResource(), instanceOf(MysqlXAConnection.class));
     }
     
     private XADataSource createXADataSource() {
@@ -55,7 +55,7 @@ class MySQLXAConnectionWrapperTest {
     
     private Connection mockConnection() throws SQLException {
         Connection result = mock(Connection.class);
-        when(result.unwrap(com.mysql.jdbc.Connection.class)).thenReturn(mock(com.mysql.jdbc.Connection.class));
+        when(result.unwrap(com.mysql.cj.MysqlConnection.class)).thenReturn(mock(com.mysql.cj.MysqlConnection.class));
         return result;
     }
 }

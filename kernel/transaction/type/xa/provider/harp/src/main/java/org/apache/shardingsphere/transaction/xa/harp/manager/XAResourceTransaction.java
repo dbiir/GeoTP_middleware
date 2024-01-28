@@ -25,8 +25,9 @@ import com.atomikos.datasource.xa.XID;
 import com.atomikos.icatch.SysException;
 import com.atomikos.recovery.TxState;
 import com.atomikos.util.Assert;
-import com.mysql.jdbc.jdbc2.optional.MysqlXid;
+import com.mysql.cj.jdbc.MysqlXid;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.shardingsphere.infra.statistics.network.Latency;
 import org.apache.shardingsphere.infra.transactions.CustomXID;
 
 import javax.transaction.xa.XAException;
@@ -81,6 +82,10 @@ public class XAResourceTransaction implements ResourceTransaction {
     
     public String toString() {
         return this.toString;
+    }
+    
+    public boolean isInPostgreSQL() {
+        return Latency.getInstance().IsPostgreSQLNode(resourcename);
     }
     
     void setState(TxState state) {

@@ -24,7 +24,6 @@ import com.atomikos.datasource.TransactionalResource;
 import com.atomikos.datasource.xa.XATransactionalResource;
 import com.atomikos.icatch.config.Configuration;
 import com.atomikos.icatch.jta.ExtendedSystemException;
-import com.mysql.jdbc.StringUtils;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.SneakyThrows;
@@ -39,6 +38,7 @@ import javax.transaction.*;
 import javax.transaction.xa.XAException;
 import javax.transaction.xa.XAResource;
 import javax.transaction.xa.Xid;
+import java.sql.SQLException;
 import java.util.*;
 
 @Slf4j
@@ -56,6 +56,9 @@ public class CustomTransactionImp implements Transaction {
     @Setter
     private volatile int status = 6;
     private volatile boolean timeout = false;
+    
+    @Setter
+    private boolean preAbort = false;
     
     CustomTransactionImp(String tid) {
         this.xaResourceToResourceTransactionMap_ = new HashMap<>();
@@ -92,7 +95,7 @@ public class CustomTransactionImp implements Transaction {
     public void commit() throws RollbackException, SecurityException, IllegalStateException {
         // TODO
         boolean onePhase = xaResourceToResourceTransactionMap_.size() == 1;
-        if (Latency.getInstance().asyncPreparation()) {
+        if (Latency.getInstance().asyncPreparation() && !preAbort && !onePhase) {
             try {
                 asyncCommit(onePhase);
             } catch (InterruptedException e) {
@@ -112,12 +115,21 @@ public class CustomTransactionImp implements Transaction {
     public void syncCommit(boolean onePhase) throws XAException {
         boolean prepareSuccess = true;
         long enterTime = System.nanoTime();
-        System.out.println("Enter in commit: " + enterTime);
+        System.out.println("Txn " + tid + " Enter in commit: " + enterTime);
         // xa end
         try {
             for (XAResourceKey each : xaResourceToResourceTransactionMap_.keySet()) {
                 XAResourceTransaction txn = xaResourceToResourceTransactionMap_.get(each);
+                CustomXID xid = new CustomXID(SQLUtils.xidToHex(xaResourceToResourceTransactionMap_.get(each).getXid()));
+                if (AgentAsyncXAManager.getInstance().getStateByXid(xid) == XATransactionState.IDLE) {
+                    continue;
+                }
+                if (txn.isInPostgreSQL()) {
+                    AgentAsyncXAManager.getInstance().setStateByXid(xid, XATransactionState.IDLE);
+                    continue;
+                }
                 each.getXares().end(txn.getXid(), 67108864);
+                AgentAsyncXAManager.getInstance().setStateByXid(xid, XATransactionState.IDLE);
             }
         } catch (XAException e) {
             log.error("xa end failed.");
@@ -130,10 +142,19 @@ public class CustomTransactionImp implements Transaction {
         if (!onePhase) {
             for (XAResourceKey each : xaResourceToResourceTransactionMap_.keySet()) {
                 XAResourceTransaction txn = xaResourceToResourceTransactionMap_.get(each);
+                CustomXID xid = new CustomXID(SQLUtils.xidToHex(xaResourceToResourceTransactionMap_.get(each).getXid()));
                 try {
+                    if (AgentAsyncXAManager.getInstance().getStateByXid(xid) == XATransactionState.PREPARED ||
+                            AgentAsyncXAManager.getInstance().getStateByXid(xid) == XATransactionState.ROLLBACK_ONLY ||
+                            AgentAsyncXAManager.getInstance().getStateByXid(xid) == XATransactionState.FAILED) {
+                        continue;
+                    }
                     each.getXares().prepare(txn.getXid());
+                    AgentAsyncXAManager.getInstance().setStateByXid(xid, XATransactionState.PREPARED);
                 } catch (XAException ex) {
                     prepareSuccess = false;
+                    AgentAsyncXAManager.getInstance().setStateByXid(xid, XATransactionState.FAILED);
+                    log.error("xa prepare failed.");
                 }
             }
         }
@@ -150,12 +171,22 @@ public class CustomTransactionImp implements Transaction {
                 } else {
                     each.getXares().commit(txn.getXid(), false);
                 }
+                
             }
         } else {
             for (XAResourceKey each : xaResourceToResourceTransactionMap_.keySet()) {
                 XAResourceTransaction txn = xaResourceToResourceTransactionMap_.get(each);
                 each.getXares().rollback(txn.getXid());
             }
+        }
+        
+        for (XAResourceKey each : xaResourceToResourceTransactionMap_.keySet()) {
+            CustomXID xid = new CustomXID(SQLUtils.xidToHex(xaResourceToResourceTransactionMap_.get(each).getXid()));
+            AgentAsyncXAManager.getInstance().clearStateByXid(xid);
+        }
+        
+        if (!prepareSuccess) {
+            throw new XAException(tid + " - XA PREPARE FAILED.");
         }
         
         long xaCommitTime = System.nanoTime();
@@ -167,14 +198,16 @@ public class CustomTransactionImp implements Transaction {
         
         if (onePhase) {
             long enterTime = System.nanoTime();
-            System.out.println("Enter in commit: " + enterTime);
+            System.out.println("Txn " + tid + " Enter in one phase async commit: " + enterTime);
             for (XAResourceKey each : xaResourceToResourceTransactionMap_.keySet()) {
                 CustomXID xid = new CustomXID(SQLUtils.xidToHex(xaResourceToResourceTransactionMap_.get(each).getXid()));
                 while (AgentAsyncXAManager.getInstance().getStateByXid(xid) != XATransactionState.IDLE &&
+                        AgentAsyncXAManager.getInstance().getStateByXid(xid) != XATransactionState.FAILED &&
                         AgentAsyncXAManager.getInstance().getStateByXid(xid) != XATransactionState.ROLLBACK_ONLY) {
                     Thread.sleep(1);
                 }
-                if (AgentAsyncXAManager.getInstance().getStateByXid(xid) == XATransactionState.ROLLBACK_ONLY) {
+                if (AgentAsyncXAManager.getInstance().getStateByXid(xid) == XATransactionState.ROLLBACK_ONLY ||
+                        AgentAsyncXAManager.getInstance().getStateByXid(xid) != XATransactionState.FAILED) {
                     prepareSuccess = false;
                 }
             }
@@ -199,14 +232,24 @@ public class CustomTransactionImp implements Transaction {
             }
             long endTime = System.nanoTime();
             System.out.println("Txn " + tid + " Finish Commit Time: " + (endTime - finishAsyncTime) / 1000 + "us");
+            
+            for (XAResourceKey each : xaResourceToResourceTransactionMap_.keySet()) {
+                CustomXID xid = new CustomXID(SQLUtils.xidToHex(xaResourceToResourceTransactionMap_.get(each).getXid()));
+                AgentAsyncXAManager.getInstance().clearStateByXid(xid);
+            }
+            
+            if (!prepareSuccess) {
+                throw new XAException(tid + " - XA PREPARE FAILED.");
+            }
         } else {
             long enterTime = System.nanoTime();
-            System.out.println("Enter in commit: " + enterTime);
+            System.out.println("Txn " + tid + " Enter in async commit: " + enterTime);
             for (XAResourceKey each : xaResourceToResourceTransactionMap_.keySet()) {
                 CustomXID xid = new CustomXID(SQLUtils.xidToHex(xaResourceToResourceTransactionMap_.get(each).getXid()));
                 while (AgentAsyncXAManager.getInstance().getStateByXid(xid) != XATransactionState.PREPARED &&
                         AgentAsyncXAManager.getInstance().getStateByXid(xid) != XATransactionState.FAILED &&
                         AgentAsyncXAManager.getInstance().getStateByXid(xid) != XATransactionState.ROLLBACK_ONLY) {
+                    // System.out.println("tid - " + tid + ", xid - " + xid.toString() + ", state - " + AgentAsyncXAManager.getInstance().getStateByXid(xid));
                     Thread.sleep(1);
                 }
                 if (AgentAsyncXAManager.getInstance().getStateByXid(xid) == XATransactionState.ROLLBACK_ONLY ||
@@ -245,6 +288,15 @@ public class CustomTransactionImp implements Transaction {
             }
             long endTime = System.nanoTime();
             System.out.println("Txn " + tid + " Finish Commit Time: " + (endTime - finishAsyncTime) / 1000 + "us");
+            
+            for (XAResourceKey each : xaResourceToResourceTransactionMap_.keySet()) {
+                CustomXID xid = new CustomXID(SQLUtils.xidToHex(xaResourceToResourceTransactionMap_.get(each).getXid()));
+                AgentAsyncXAManager.getInstance().clearStateByXid(xid);
+            }
+            
+            if (!prepareSuccess) {
+                throw new XAException(tid + " - XA PREPARE FAILED.");
+            }
         }
         
     }
@@ -434,7 +486,8 @@ public class CustomTransactionImp implements Transaction {
     @SneakyThrows
     @Override
     public void rollback() throws IllegalStateException, SystemException {
-        if (Latency.getInstance().asyncPreparation()) {
+        boolean onePhase = xaResourceToResourceTransactionMap_.size() == 1;
+        if (Latency.getInstance().asyncPreparation() && !preAbort && !onePhase) {
             asyncRollback();
         } else {
             syncRollback();
@@ -443,10 +496,20 @@ public class CustomTransactionImp implements Transaction {
     
     public void syncRollback() throws XAException {
         // xa end
+        System.out.println("Txn " + tid + " sync rollback.");
         try {
             for (XAResourceKey each : xaResourceToResourceTransactionMap_.keySet()) {
                 XAResourceTransaction txn = xaResourceToResourceTransactionMap_.get(each);
+                CustomXID xid = new CustomXID(SQLUtils.xidToHex(xaResourceToResourceTransactionMap_.get(each).getXid()));
+                if (AgentAsyncXAManager.getInstance().getStateByXid(xid) != XATransactionState.ACTIVE) {
+                    continue;
+                }
+                if (txn.isInPostgreSQL()) {
+                    AgentAsyncXAManager.getInstance().setStateByXid(xid, XATransactionState.IDLE);
+                    continue;
+                }
                 each.getXares().end(txn.getXid(), 67108864);
+                AgentAsyncXAManager.getInstance().setStateByXid(xid, XATransactionState.IDLE);
             }
         } catch (XAException e) {
             log.error("xa end failed.");
@@ -458,9 +521,15 @@ public class CustomTransactionImp implements Transaction {
             XAResourceTransaction txn = xaResourceToResourceTransactionMap_.get(each);
             each.getXares().rollback(txn.getXid());
         }
+        
+        for (XAResourceKey each : xaResourceToResourceTransactionMap_.keySet()) {
+            CustomXID xid = new CustomXID(SQLUtils.xidToHex(xaResourceToResourceTransactionMap_.get(each).getXid()));
+            AgentAsyncXAManager.getInstance().clearStateByXid(xid);
+        }
     }
     
     public void asyncRollback() throws InterruptedException, XAException {
+        System.out.println("Txn " + tid + " async rollback");
         for (XAResourceKey each : xaResourceToResourceTransactionMap_.keySet()) {
             CustomXID xid = new CustomXID(SQLUtils.xidToHex(xaResourceToResourceTransactionMap_.get(each).getXid()));
             while (AgentAsyncXAManager.getInstance().getStateByXid(xid) != XATransactionState.PREPARED &&
@@ -474,6 +543,7 @@ public class CustomTransactionImp implements Transaction {
         for (XAResourceKey each : xaResourceToResourceTransactionMap_.keySet()) {
             threadList.add(new Thread(() -> {
                 XAResourceTransaction txn = xaResourceToResourceTransactionMap_.get(each);
+                log.info("XA ROLLBACK " + SQLUtils.xidToHex(xaResourceToResourceTransactionMap_.get(each).getXid()));
                 try {
                     each.getXares().rollback(txn.getXid());
                 } catch (XAException ex) {
@@ -487,6 +557,11 @@ public class CustomTransactionImp implements Transaction {
         }
         for (Thread each : threadList) {
             each.join();
+        }
+        
+        for (XAResourceKey each : xaResourceToResourceTransactionMap_.keySet()) {
+            CustomXID xid = new CustomXID(SQLUtils.xidToHex(xaResourceToResourceTransactionMap_.get(each).getXid()));
+            AgentAsyncXAManager.getInstance().clearStateByXid(xid);
         }
     }
     

@@ -60,6 +60,18 @@ public final class Latency {
         }
     }
     
+    public boolean IsPostgreSQLNode(String resource_name) {
+        for (Map.Entry<String, String> each : srcToIp.entrySet()) {
+            if (resource_name.contains(each.getKey())) {
+                // find the ip of postgreSQL node
+                if (each.getValue().equals("10.77.70.89") || each.getValue().equals("10.77.70.90") || each.getValue().equals("127.0.0.1")) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    
     public double GetLatency(String src) {
         if (latencies.containsKey(src)) {
             return latencies.get(src)[windowSize];
@@ -103,7 +115,10 @@ public final class Latency {
     }
     
     public boolean NeedDelay() {
-        return algorithm.equals("harp") || algorithm.equals("aharp");
+        return algorithm.equals("harp") || algorithm.equals("aharp") ||
+                algorithm.equals("harp_lp") || algorithm.equals("aharp_lp") ||
+                algorithm.equals("harp_pa") || algorithm.equals("aharp_pa") ||
+                algorithm.equals("harp_lppa") || algorithm.equals("aharp_lppa");
     }
     
     public boolean NeedLatencyPredict() {
