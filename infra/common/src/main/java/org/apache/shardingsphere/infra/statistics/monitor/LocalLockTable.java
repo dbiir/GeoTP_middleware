@@ -45,6 +45,7 @@ public final class LocalLockTable {
     private final int totalNum;
     private final ConcurrentHashMap<String, LockMetaData[]> tableNameToLockMetaData = new ConcurrentHashMap<>(15);
     private final HashMap<String, Integer> DefaultTableNameToSize = new HashMap<>(10);
+    private final ConcurrentHashMap<String, AVLTree> tableNameToAVLMetaData = new ConcurrentHashMap<>(15);
     String fileName = "default_table_size";
     private LocalLockTable(int totalNum) throws IOException {
         this.enableStatistic = false;
@@ -63,13 +64,12 @@ public final class LocalLockTable {
         }
     }
     
-    // TODO: (urgency level: low) add LRU strategy to this Array;
     public void registerTable(String tableName, int tableScale) {
         if (tableNameToLockMetaData.get(tableName) == null) {
-            System.out.println("register " + tableName + ", Size " + tableScale);
+            System.out.println("Register " + tableName + ", Size " + tableScale);
             tableNameToLockMetaData.put(tableName, new LockMetaData[tableScale]);
             for (int i = 0; i < tableScale; i++) {
-                tableNameToLockMetaData.get(tableName)[i] = new LockMetaData();
+                tableNameToLockMetaData.get(tableName)[i] = new LockMetaData(i);
             }
         }
     }
@@ -77,10 +77,11 @@ public final class LocalLockTable {
     public void registerTable(String tableName) {
         if (tableNameToLockMetaData.get(tableName) == null) {
             int size = getDefaultTableSize(tableName);
-            System.out.println("register " + tableName + ", Size " + size);
+            System.out.println("Register " + tableName + ", Size " + size);
             tableNameToLockMetaData.put(tableName, new LockMetaData[size]);
             for (int i = 0; i < totalNum; i++) {
-                tableNameToLockMetaData.get(tableName)[i] = new LockMetaData();
+//                LockMetaData data = new LockMetaData(i);
+                tableNameToLockMetaData.get(tableName)[i] = new LockMetaData(i);
             }
         }
     }

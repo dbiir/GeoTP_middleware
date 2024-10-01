@@ -22,6 +22,8 @@ import org.apache.shardingsphere.infra.executor.kernel.model.ExecutionGroup;
 import org.apache.shardingsphere.infra.executor.kernel.model.ExecutionGroupContext;
 import org.apache.shardingsphere.infra.executor.kernel.model.ExecutorCallback;
 import org.apache.shardingsphere.infra.executor.kernel.thread.ExecutorServiceManager;
+import org.apache.shardingsphere.infra.executor.sql.context.ExecutionUnit;
+import org.apache.shardingsphere.infra.executor.sql.execute.engine.driver.jdbc.JDBCExecutionUnit;
 import org.apache.shardingsphere.infra.util.exception.external.sql.type.generic.UnknownSQLException;
 
 import java.sql.SQLException;
@@ -111,8 +113,44 @@ public final class ExecutorEngine implements AutoCloseable {
             return Collections.emptyList();
         }
         // long startTime = System.currentTimeMillis();
-        List<O> result = parallelExecute(executionGroupContext.getInputGroups().iterator(), firstCallback, callback);
+//        List<O> result = parallelExecute(executionGroupContext.getInputGroups().iterator(), firstCallback, callback);
+        List<O> result = chillerExecutor(executionGroupContext, firstCallback, callback);
         // System.out.println("parallel execute time: " + (System.currentTimeMillis() - startTime) + " ms; sql: " + executionGroupContext.getInputGroups().toString());
+        return result;
+    }
+
+
+    private <I, O> List<O> chillerExecutor(final ExecutionGroupContext<I> executionGroupContext,
+                                           final ExecutorCallback<I, O> firstCallback, final ExecutorCallback<I, O> callback) throws SQLException {
+        if (executionGroupContext.getInputGroups().isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<ExecutionGroup<I>> innerRegion = new LinkedList<>();
+        List<ExecutionGroup<I>> outerRegion = new LinkedList<>();
+        for (ExecutionGroup<I> each : executionGroupContext.getInputGroups()) {
+            I eachUnit = each.getInputs().get(0);
+            if (eachUnit instanceof JDBCExecutionUnit) {
+                ExecutionUnit executionUnit = ((JDBCExecutionUnit) eachUnit).getExecutionUnit();
+                if (executionUnit.IsInnerExecutionUnit()) {
+                    innerRegion.add(each);
+                } else {
+                    outerRegion.add(each);
+                }
+            }
+        }
+        List<O> result = new LinkedList<>();
+        if (!outerRegion.isEmpty())
+            result.addAll(parallelExecute(outerRegion.iterator(), firstCallback, callback));
+        // wait for all prepared result
+        for (ExecutionGroup<I> each : outerRegion) {
+            I eachUnit = each.getInputs().get(0);
+            if (eachUnit instanceof JDBCExecutionUnit) {
+                ExecutionUnit executionUnit = ((JDBCExecutionUnit) eachUnit).getExecutionUnit();
+                executionUnit.getDataSourceName();
+            }
+        }
+        if (!innerRegion.isEmpty())
+            result.addAll(serialExecute(innerRegion.iterator(), firstCallback, callback));
         return result;
     }
     

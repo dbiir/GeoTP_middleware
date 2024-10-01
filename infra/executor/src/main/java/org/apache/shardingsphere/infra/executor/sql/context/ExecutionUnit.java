@@ -116,4 +116,8 @@ public final class ExecutionUnit {
     public void CombineExecutionUnit(ExecutionUnit other) {
         sqlUnit.CombineSQLUnit(other.getSqlUnit());
     }
+
+    public boolean IsInnerExecutionUnit() {
+        return dataSourceName.equals("ds_0");
+    }
 }

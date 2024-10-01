@@ -26,7 +26,7 @@ public final class LockMetaData {
     
     private static final int countThreshold = 32;
     private static final double alpha = 0.75;
-    
+    private int key;
     private int readCount;
     private int writeCount;
     private double readLatency;
@@ -51,6 +51,19 @@ public final class LockMetaData {
         latency = 0.01;
         startTime = System.nanoTime();
         networkThreshold = 0;
+    }
+
+    public LockMetaData(int k) {
+        readCount = 0;
+        writeCount = 0;
+        count = 1;
+        successCount = 1;
+        readLatency = 0.01;
+        writeLatency = 0.01;
+        latency = 0.01;
+        startTime = System.nanoTime();
+        networkThreshold = 0;
+        key = k;
     }
     
     public LockMetaData(double networkLatency) {

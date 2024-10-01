@@ -22,7 +22,7 @@
 # 
 ######################################################################################################
 #
-#databaseName: sharding_db
+#databaseName: harp
 #
 #dataSources:
 #  ds_0:
@@ -113,112 +113,84 @@
 databaseName: sharding_db
 
 dataSources:
-  #  ds_0:
-  #    url: jdbc:mysql://10.77.70.85:6603/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
-  #    username: sharding
-  #    password: sharding
-  #    connectionTimeoutMilliseconds: 30000
-  #    idleTimeoutMilliseconds: 60000
-  #    maxLifetimeMilliseconds: 1800000
-  #    maxPoolSize: 256
-  #    minPoolSize: 32
-  #  ds_1:
-  #    url: jdbc:mysql://10.77.70.86:6603/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
-  #    username: sharding
-  #    password: sharding
-  #    connectionTimeoutMilliseconds: 30000
-  #    idleTimeoutMilliseconds: 60000
-  #    maxLifetimeMilliseconds: 1800000
-  #    maxPoolSize: 256
-  #    minPoolSize: 32
-  #  ds_2:
-  #    url: jdbc:mysql://10.77.70.87:6603/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
-  #    username: sharding
-  #    password: sharding
-  #    connectionTimeoutMilliseconds: 30000
-  #    idleTimeoutMilliseconds: 60000
-  #    maxLifetimeMilliseconds: 1800000
-  #    maxPoolSize: 256
-  #    minPoolSize: 32
-  #  ds_3:
-  #    url: jdbc:mysql://10.77.70.88:6603/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
-  #    username: sharding
-  #    password: sharding
-  #    connectionTimeoutMilliseconds: 30000
-  #    idleTimeoutMilliseconds: 60000
-  #    maxLifetimeMilliseconds: 1800000
-  #    maxPoolSize: 2100
-  #    minPoolSize: 32
-  #  ds_0:
-  #    url: jdbc:mysql://127.0.0.1:6603/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
-  #    username: sharding
-  #    password: sharding
-  #    connectionTimeoutMilliseconds: 30000
-  #    idleTimeoutMilliseconds: 60000
-  #    maxLifetimeMilliseconds: 1800000
-  #    maxPoolSize: 2100
-  #    minPoolSize: 32
-  ds_0:
-    url: jdbc:mysql://11.99.55.8:6603/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
-    username: sharding
-    password: sharding
-    connectionTimeoutMilliseconds: 30000
-    idleTimeoutMilliseconds: 60000
-    maxLifetimeMilliseconds: 1800000
-    maxPoolSize: 256
-    minPoolSize: 32
-  ds_1:
-    url: jdbc:mysql://11.99.55.9:6603/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
-    username: sharding
-    password: sharding
-    connectionTimeoutMilliseconds: 30000
-    idleTimeoutMilliseconds: 60000
-    maxLifetimeMilliseconds: 1800000
-    maxPoolSize: 256
-    minPoolSize: 32
-  ds_2:
-    url: jdbc:mysql://11.99.55.12:6603/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
-    username: sharding
-    password: sharding
-    connectionTimeoutMilliseconds: 30000
-    idleTimeoutMilliseconds: 60000
-    maxLifetimeMilliseconds: 1800000
-    maxPoolSize: 256
-    minPoolSize: 32
-  ds_3:
-    url: jdbc:mysql://11.129.111.12:6603/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
-    username: sharding
-    password: sharding
-    connectionTimeoutMilliseconds: 30000
-    idleTimeoutMilliseconds: 60000
-    maxLifetimeMilliseconds: 1800000
-    maxPoolSize: 2100
-    minPoolSize: 32
+   ds_0:
+     url: jdbc:mysql://10.77.70.85:3306/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
+     username: shardingsphere
+     password: Ss123!@#
+     connectionTimeoutMilliseconds: 30000
+     idleTimeoutMilliseconds: 60000
+     maxLifetimeMilliseconds: 1800000
+     maxPoolSize: 256
+     minPoolSize: 32
+   ds_1:
+     url: jdbc:mysql://10.77.70.86:3306/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
+     username: shardingsphere
+     password: Ss123!@#
+     connectionTimeoutMilliseconds: 30000
+     idleTimeoutMilliseconds: 60000
+     maxLifetimeMilliseconds: 1800000
+     maxPoolSize: 256
+     minPoolSize: 32
+   ds_2:
+     url: jdbc:mysql://10.77.70.87:3306/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
+     username: shardingsphere
+     password: Ss123!@#
+     connectionTimeoutMilliseconds: 30000
+     idleTimeoutMilliseconds: 60000
+     maxLifetimeMilliseconds: 1800000
+     maxPoolSize: 256
+     minPoolSize: 32
+   ds_3:
+     url: jdbc:mysql://10.77.70.88:3306/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
+     username: shardingsphere
+     password: Ss123!@#
+     connectionTimeoutMilliseconds: 30000
+     idleTimeoutMilliseconds: 60000
+     maxLifetimeMilliseconds: 1800000
+     maxPoolSize: 2100
+     minPoolSize: 32
 #  ds_0:
-#    url: jdbc:mysql://9.134.213.233:6603/sharding_db?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
+#    url: jdbc:mysql://10.77.70.85:6603/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
 #    username: sharding
 #    password: sharding
 #    connectionTimeoutMilliseconds: 30000
 #    idleTimeoutMilliseconds: 60000
 #    maxLifetimeMilliseconds: 1800000
-#    maxPoolSize: 200
-#    minPoolSize: 1
+#    maxPoolSize: 2100
+#    minPoolSize: 32
 #  ds_1:
-#    url: jdbc:mysql://9.134.123.45:6603/sharding_db?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
+#    url: jdbc:mysql://10.77.70.86:6603/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
 #    username: sharding
 #    password: sharding
 #    connectionTimeoutMilliseconds: 30000
 #    idleTimeoutMilliseconds: 60000
 #    maxLifetimeMilliseconds: 1800000
-#    maxPoolSize: 200
-#    minPoolSize: 1
+#    maxPoolSize: 2100
+#    minPoolSize: 32
+#  ds_2:
+#    url: jdbc:mysql://10.77.70.87:6603/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
+#    username: sharding
+#    password: sharding
+#    connectionTimeoutMilliseconds: 30000
+#    idleTimeoutMilliseconds: 60000
+#    maxLifetimeMilliseconds: 1800000
+#    maxPoolSize: 2100
+#    minPoolSize: 32
+#  ds_3:
+#    url: jdbc:mysql://10.77.70.88:6603/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
+#    username: sharding
+#    password: sharding
+#    connectionTimeoutMilliseconds: 30000
+#    idleTimeoutMilliseconds: 60000
+#    maxLifetimeMilliseconds: 1800000
+#    maxPoolSize: 2100
+#    minPoolSize: 32
 
 rules:
   - !SHARDING
     bindingTables:
-      - warehouse
-      - customer, item, oorder, history
-      - stock, district, order_line, new_order
+      - warehouse, customer
+      - stock, district, order_line
       - usertable
     defaultDatabaseStrategy:
       none:
@@ -240,11 +212,11 @@ rules:
         actualDataNodes: ds_0.config
 
       warehouse:
-        actualDataNodes: ds_0.warehouse
-      #        databaseStrategy:
-      #          standard:
-      #            shardingColumn: w_id
-      #            shardingAlgorithmName: mod_4
+        actualDataNodes: ds_${0..3}.warehouse
+        databaseStrategy:
+          standard:
+            shardingColumn: w_id
+            shardingAlgorithmName: mod_4
 
       district:
         actualDataNodes: ds_${0..3}.district

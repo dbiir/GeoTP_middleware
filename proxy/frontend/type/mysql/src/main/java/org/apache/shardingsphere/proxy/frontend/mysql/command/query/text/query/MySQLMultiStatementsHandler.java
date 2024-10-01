@@ -243,7 +243,8 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
         boolean onePhase = executionGroupContext.getInputGroups().size() == 1;
         for (ExecutionGroup<JDBCExecutionUnit> each : executionGroupContext.getInputGroups()) {
             ExecutionUnit executionUnit = each.getInputs().get(0).getExecutionUnit();
-            executionUnit.getSqlUnit().setLastQueryComment(onePhase);
+            if (isLastQuery)
+                executionUnit.getSqlUnit().setLastQueryComment(onePhase);
         }
         
         return executeMultiStatements(executionGroupContext);
@@ -251,7 +252,7 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
     
     private boolean analysisLatency(List<ExecutionGroup<JDBCExecutionUnit>> groupUnits) {
         // harp
-        if (groupUnits.size() == 0) {
+        if (groupUnits.isEmpty()) {
             return true;
         }
         
@@ -285,16 +286,19 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                 }
                 executionUnit.addKeys(tableName, key);
             }
-            
-            // System.out.println("probability: " + executionUnit.getAbortProbability() + " latency: " + executionUnit.getLocalExecuteLatency());
-            
+
             // pre-abort
             if (Math.random() < executionUnit.getAbortProbability()) {
                 if (groupUnits.size() > 1) {
                     return false;
                 }
             }
-            
+
+            System.out.println(Thread.currentThread().getId() +
+                    " ds: " + dataSourceName +
+                    " probability: " + executionUnit.getAbortProbability() +
+                    " latency: " + executionUnit.getLocalExecuteLatency());
+
             maxLatency = Math.max(maxLatency, executionUnit.getLocalExecuteLatency());
             // System.out.println("maxLatency: " + maxLatency + "ms");
         }
@@ -447,7 +451,13 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
             String dataSourceName = executionUnit.getDataSourceName();
             
             double localExecuteTime = Math.max(0, executionUnit.getRealExecuteLatency() - Latency.getInstance().GetLatency(dataSourceName));
-            
+
+            if (isFinish) {
+                System.out.println(Thread.currentThread().getId() +
+                        " ds: " + dataSourceName +
+                        " true latency: " + executionUnit.getRealExecuteLatency());
+            }
+
             if (isFinish && localExecuteTime < 1e-5) {
                 for (Map.Entry<String, List<Integer>> tableToKeys : executionUnit.getKeys().entrySet()) {
                     for (Integer key : tableToKeys.getValue()) {
@@ -483,6 +493,8 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                 }
             }
         }
+
+        System.out.println(Thread.currentThread().getId() + " feedback finish: " + isFinish);
     }
     
     private static class BatchedJDBCExecutorCallback extends JDBCExecutorCallback<List<ExecuteResult>> {
@@ -513,7 +525,7 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                     }
                     
                     resultsAvailable = statement.getMoreResults();
-                    System.out.println("True execute time: " + ((System.nanoTime() - start) / 1000000) + "ms");
+//                    System.out.println("True execute time: " + ((System.nanoTime() - start) / 1000000) + "ms");
                 }
                 
                 return list;
