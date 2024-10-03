@@ -163,11 +163,11 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
             dataSourcesToQueryContext.computeIfAbsent(dataSourceName, unused -> new LinkedList<>()).add(executionContext.getQueryContext());
         }
         
-        for (Map.Entry<String, Connection> entry : connectionSession.getBackendConnection().getCachedConnections().entries()) {
-            String dataSourceName = entry.getKey().split("\\.")[1];
-            ExecutionUnit unit = new ExecutionUnit(dataSourceName, new SQLUnit());
-            groupExecuteUnits.computeIfAbsent(dataSourceName, unused -> new LinkedList<>()).add(unit);
-        }
+//        for (Map.Entry<String, Connection> entry : connectionSession.getBackendConnection().getCachedConnections().entries()) {
+//            String dataSourceName = entry.getKey().split("\\.")[1];
+//            ExecutionUnit unit = new ExecutionUnit(dataSourceName, new SQLUnit());
+//            groupExecuteUnits.computeIfAbsent(dataSourceName, unused -> new LinkedList<>()).add(unit);
+//        }
         
         for (List<ExecutionUnit> each : groupExecuteUnits.values()) {
             ExecutionUnit first = each.get(0);
@@ -176,7 +176,6 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
             }
             
             // TODO: add prepare stmt
-            
             dataSourcesToExecutionUnits.computeIfAbsent(first.getDataSourceName(), unused -> new LinkedList<>()).add(first);
         }
     }

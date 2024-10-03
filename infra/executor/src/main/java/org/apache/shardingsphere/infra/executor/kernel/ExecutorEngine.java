@@ -142,13 +142,6 @@ public final class ExecutorEngine implements AutoCloseable {
         if (!outerRegion.isEmpty())
             result.addAll(parallelExecute(outerRegion.iterator(), firstCallback, callback));
         // wait for all prepared result
-        for (ExecutionGroup<I> each : outerRegion) {
-            I eachUnit = each.getInputs().get(0);
-            if (eachUnit instanceof JDBCExecutionUnit) {
-                ExecutionUnit executionUnit = ((JDBCExecutionUnit) eachUnit).getExecutionUnit();
-                executionUnit.getDataSourceName();
-            }
-        }
         if (!innerRegion.isEmpty())
             result.addAll(serialExecute(innerRegion.iterator(), firstCallback, callback));
         return result;
