@@ -244,6 +244,11 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
             ExecutionUnit executionUnit = each.getInputs().get(0).getExecutionUnit();
             if (isLastQuery)
                 executionUnit.getSqlUnit().setLastQueryComment(onePhase);
+
+            System.out.println("[" + Thread.currentThread().getName() + "]" +
+                    " ds: " + executionUnit.getDataSourceName() +
+                    " probability: " + executionUnit.getAbortProbability() +
+                    " latency: " + executionUnit.getLocalExecuteLatency());
         }
         
         return executeMultiStatements(executionGroupContext);
@@ -282,6 +287,14 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                 }
                 if (Latency.getInstance().NeedLatencyPredict() || Latency.getInstance().NeedLatencyPredictionAndPreAbort()) {
                     executionUnit.updateLocalExecuteLatency((int) Objects.requireNonNull(LocalLockTable.getInstance().getLockMetaData(tableName, key)).getLatency());
+                    if (key == 0 || key == 100 || key == 10000) {
+                        System.out.println("[" + Thread.currentThread().getName() + "] key: " +
+                                key + " predict latency: " +
+                                Objects.requireNonNull(
+                                        LocalLockTable.getInstance().getLockMetaData(tableName, key)
+                                ).getLatency() + "ms"
+                        );
+                    }
                 }
                 executionUnit.addKeys(tableName, key);
             }
@@ -292,11 +305,6 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                     return false;
                 }
             }
-
-            System.out.println(Thread.currentThread().getId() +
-                    " ds: " + dataSourceName +
-                    " probability: " + executionUnit.getAbortProbability() +
-                    " latency: " + executionUnit.getLocalExecuteLatency());
 
             maxLatency = Math.max(maxLatency, executionUnit.getLocalExecuteLatency());
             // System.out.println("maxLatency: " + maxLatency + "ms");
@@ -452,9 +460,9 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
             double localExecuteTime = Math.max(0, executionUnit.getRealExecuteLatency() - Latency.getInstance().GetLatency(dataSourceName));
 
             if (isFinish) {
-                System.out.println(Thread.currentThread().getId() +
+                System.out.println(Thread.currentThread().getName() + " after execution: " +
                         " ds: " + dataSourceName +
-                        " true latency: " + executionUnit.getRealExecuteLatency());
+                        " latency: " + executionUnit.getRealExecuteLatency());
             }
 
             if (isFinish && localExecuteTime < 1e-5) {
@@ -464,6 +472,12 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                         Objects.requireNonNull(lockMetaData).decProcessing();
                         lockMetaData.incCount();
                         lockMetaData.incSuccessCount();
+                        if (key == 0 || key == 100 || key == 10000) {
+                            System.out.println("[" + Thread.currentThread().getName() + "] key: " +
+                                    key + " execute latency: " +
+                                    Objects.requireNonNull(lockMetaData).getLatency() + "ms"
+                            );
+                        }
                     }
                 }
                 continue;
@@ -483,17 +497,22 @@ public final class MySQLMultiStatementsHandler implements ProxyBackendHandler {
                     lockMetaData.incCount();
                     if (isFinish) {
                         double singleLatency = localExecuteTime * lockMetaData.getLatency() / Math.max(totalWeight, 0.0001);
-                        
-                        if (singleLatency < networkThreshold) {
-                            lockMetaData.incSuccessCount();
-                            Objects.requireNonNull(LocalLockTable.getInstance().getLockMetaData(tableToKeys.getKey(), key)).updateLatency(singleLatency);
+                        if (singleLatency > networkThreshold)
+                            continue;
+                        lockMetaData.incSuccessCount();
+                        Objects.requireNonNull(LocalLockTable.getInstance().getLockMetaData(tableToKeys.getKey(), key)).updateLatency(singleLatency);
+                        if (key == 0 || key == 100 || key == 10000) {
+                            System.out.println("[" + Thread.currentThread().getName() + "] key: " +
+                                    key + " execute latency: " +
+                                    Objects.requireNonNull(lockMetaData).getLatency() + "ms"
+                            );
                         }
                     }
                 }
             }
         }
 
-        System.out.println(Thread.currentThread().getId() + " feedback finish: " + isFinish);
+        System.out.println("[" + Thread.currentThread().getName() + "] feedback finish: " + isFinish);
     }
     
     private static class BatchedJDBCExecutorCallback extends JDBCExecutorCallback<List<ExecuteResult>> {

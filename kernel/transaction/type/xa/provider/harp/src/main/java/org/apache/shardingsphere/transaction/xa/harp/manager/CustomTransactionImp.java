@@ -530,15 +530,15 @@ public class CustomTransactionImp implements Transaction {
     
     public void asyncRollback() throws InterruptedException, XAException {
         System.out.println("Txn " + tid + " async rollback");
-        for (XAResourceKey each : xaResourceToResourceTransactionMap_.keySet()) {
-            CustomXID xid = new CustomXID(SQLUtils.xidToHex(xaResourceToResourceTransactionMap_.get(each).getXid()));
-            while (AgentAsyncXAManager.getInstance().getStateByXid(xid) != XATransactionState.PREPARED &&
-                    AgentAsyncXAManager.getInstance().getStateByXid(xid) != XATransactionState.FAILED &&
-                    AgentAsyncXAManager.getInstance().getStateByXid(xid) != XATransactionState.ROLLBACK_ONLY &&
-                    AgentAsyncXAManager.getInstance().getStateByXid(xid) != XATransactionState.IDLE) {
-                Thread.sleep(1);
-            }
-        }
+//        for (XAResourceKey each : xaResourceToResourceTransactionMap_.keySet()) {
+//            CustomXID xid = new CustomXID(SQLUtils.xidToHex(xaResourceToResourceTransactionMap_.get(each).getXid()));
+//            while (AgentAsyncXAManager.getInstance().getStateByXid(xid) != XATransactionState.PREPARED &&
+//                    AgentAsyncXAManager.getInstance().getStateByXid(xid) != XATransactionState.FAILED &&
+//                    AgentAsyncXAManager.getInstance().getStateByXid(xid) != XATransactionState.ROLLBACK_ONLY &&
+//                    AgentAsyncXAManager.getInstance().getStateByXid(xid) != XATransactionState.IDLE) {
+//                Thread.sleep(1);
+//            }
+//        }
         List<Thread> threadList = new LinkedList<>();
         for (XAResourceKey each : xaResourceToResourceTransactionMap_.keySet()) {
             threadList.add(new Thread(() -> {

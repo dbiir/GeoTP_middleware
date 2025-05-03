@@ -21,19 +21,19 @@
 # This example is configuration of sharding rule.
 # 
 ######################################################################################################
-#
-#databaseName: harp
-#
-#dataSources:
-#  ds_0:
-#    url: jdbc:postgresql://127.0.0.1:5432/demo_ds_0
-#    username: postgres
-#    password: postgres
-#    connectionTimeoutMilliseconds: 30000
-#    idleTimeoutMilliseconds: 60000
-#    maxLifetimeMilliseconds: 1800000
-#    maxPoolSize: 50
-#    minPoolSize: 1
+
+databaseName: harp
+
+dataSources:
+  ds_0:
+    url: jdbc:postgresql://127.0.0.1:5432/demo_ds_0
+    username: postgres
+    password: postgres
+    connectionTimeoutMilliseconds: 30000
+    idleTimeoutMilliseconds: 60000
+    maxLifetimeMilliseconds: 1800000
+    maxPoolSize: 50
+    minPoolSize: 1
 #  ds_1:
 #    url: jdbc:postgresql://127.0.0.1:5432/demo_ds_1
 #    username: postgres
@@ -44,33 +44,16 @@
 #    maxPoolSize: 50
 #    minPoolSize: 1
 #
-#rules:
-#- !SHARDING
-#  tables:
-#    t_order:
-#      actualDataNodes: ds_${0..1}.t_order_${0..1}
-#      tableStrategy:
-#        standard:
-#          shardingColumn: order_id
-#          shardingAlgorithmName: t_order_inline
-#      keyGenerateStrategy:
-#        column: order_id
-#        keyGeneratorName: snowflake
-#      auditStrategy:
-#        auditorNames:
-#          - sharding_key_required_auditor
-#        allowHintDisable: true
-#    t_order_item:
-#      actualDataNodes: ds_${0..1}.t_order_item_${0..1}
-#      tableStrategy:
-#        standard:
-#          shardingColumn: order_id
-#          shardingAlgorithmName: t_order_item_inline
-#      keyGenerateStrategy:
-#        column: order_item_id
-#        keyGeneratorName: snowflake
-#  bindingTables:
-#    - t_order,t_order_item
+rules:
+- !SHARDING
+  bindingTables:
+    - usertable
+  tables:
+    usertable:
+      actualDataNodes: ds_0.usertable
+      tableStrategy:
+        standard:
+          shardingColumn: ycsb_key
 #  defaultDatabaseStrategy:
 #    standard:
 #      shardingColumn: user_id
@@ -110,45 +93,55 @@
 #
 ######################################################################################################
 
-databaseName: sharding_db
+#databaseName: sharding_db
+#
+#dataSources:
+#   ds_0:
+#     url: jdbc:mysql://10.77.70.85:3306/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
+#     username: shardingsphere
+#     password: Ss123!@#
+#     connectionTimeoutMilliseconds: 30000
+#     idleTimeoutMilliseconds: 60000
+#     maxLifetimeMilliseconds: 1800000
+#     maxPoolSize: 256
+#     minPoolSize: 32
+#   ds_1:
+#     url: jdbc:mysql://10.77.70.86:3306/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
+#     username: shardingsphere
+#     password: Ss123!@#
+#     connectionTimeoutMilliseconds: 30000
+#     idleTimeoutMilliseconds: 60000
+#     maxLifetimeMilliseconds: 1800000
+#     maxPoolSize: 256
+#     minPoolSize: 32
+#   ds_2:
+#     url: jdbc:mysql://10.77.70.87:3306/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
+#     username: shardingsphere
+#     password: Ss123!@#
+#     connectionTimeoutMilliseconds: 30000
+#     idleTimeoutMilliseconds: 60000
+#     maxLifetimeMilliseconds: 1800000
+#     maxPoolSize: 256
+#     minPoolSize: 32
+#   ds_3:
+#     url: jdbc:mysql://10.77.70.88:3306/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
+#     username: shardingsphere
+#     password: Ss123!@#
+#     connectionTimeoutMilliseconds: 30000
+#     idleTimeoutMilliseconds: 60000
+#     maxLifetimeMilliseconds: 1800000
+#     maxPoolSize: 2100
+#     minPoolSize: 32
+#   ds_4:
+#     url: jdbc:mysql://10.77.70.250:3306/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
+#     username: shardingsphere
+#     password: Ss123!@#
+#     connectionTimeoutMilliseconds: 30000
+#     idleTimeoutMilliseconds: 60000
+#     maxLifetimeMilliseconds: 1800000
+#     maxPoolSize: 2100
+#     minPoolSize: 32
 
-dataSources:
-   ds_0:
-     url: jdbc:mysql://10.77.70.85:3306/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
-     username: shardingsphere
-     password: Ss123!@#
-     connectionTimeoutMilliseconds: 30000
-     idleTimeoutMilliseconds: 60000
-     maxLifetimeMilliseconds: 1800000
-     maxPoolSize: 256
-     minPoolSize: 32
-   ds_1:
-     url: jdbc:mysql://10.77.70.86:3306/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
-     username: shardingsphere
-     password: Ss123!@#
-     connectionTimeoutMilliseconds: 30000
-     idleTimeoutMilliseconds: 60000
-     maxLifetimeMilliseconds: 1800000
-     maxPoolSize: 256
-     minPoolSize: 32
-   ds_2:
-     url: jdbc:mysql://10.77.70.87:3306/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
-     username: shardingsphere
-     password: Ss123!@#
-     connectionTimeoutMilliseconds: 30000
-     idleTimeoutMilliseconds: 60000
-     maxLifetimeMilliseconds: 1800000
-     maxPoolSize: 256
-     minPoolSize: 32
-   ds_3:
-     url: jdbc:mysql://10.77.70.88:3306/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
-     username: shardingsphere
-     password: Ss123!@#
-     connectionTimeoutMilliseconds: 30000
-     idleTimeoutMilliseconds: 60000
-     maxLifetimeMilliseconds: 1800000
-     maxPoolSize: 2100
-     minPoolSize: 32
 #  ds_0:
 #    url: jdbc:mysql://10.77.70.85:6603/harp?serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true&allowMultiQueries=true&pinGlobalTxToPhysicalConnection=true
 #    username: sharding
@@ -186,103 +179,105 @@ dataSources:
 #    maxPoolSize: 2100
 #    minPoolSize: 32
 
-rules:
-  - !SHARDING
-    bindingTables:
-      - warehouse, customer
-      - stock, district, order_line
-      - usertable
-    defaultDatabaseStrategy:
-      none:
-    defaultTableStrategy:
-      none:
-    keyGenerators:
-      snowflake:
-        type: SNOWFLAKE
-    tables:
-      #      ycsb
-      usertable:
-        actualDataNodes: ds_${0..3}.usertable
-        databaseStrategy:
-          standard:
-            shardingColumn: ycsb_key
-            shardingAlgorithmName: mod_4
-      #      tpcc
-      config:
-        actualDataNodes: ds_0.config
+#rules:
+#  - !SHARDING
+#    bindingTables:
+#      - warehouse, config
+#      - customer
+#      - stock, district, order_line
+#      - usertable
+#    defaultDatabaseStrategy:
+#      none:
+#    defaultTableStrategy:
+#      none:
+#    keyGenerators:
+#      snowflake:
+#        type: SNOWFLAKE
+#    tables:
+#      #      ycsb
+#      usertable:
+#        actualDataNodes: ds_${0..4}.usertable
+#        databaseStrategy:
+#          standard:
+#            shardingColumn: ycsb_key
+#            shardingAlgorithmName: mod_5
+#      #      tpcc
+#      config:
+#        actualDataNodes: ds_0.config
+#
+#      warehouse:
+#        actualDataNodes: ds_0.warehouse
+#
+#      district:
+#        actualDataNodes: ds_${0..4}.district
+#        databaseStrategy:
+#          standard:
+#            shardingColumn: d_w_id
+#            shardingAlgorithmName: mod_5
+#
+#      customer:
+#        actualDataNodes: ds_${0..4}.customer
+#        databaseStrategy:
+#          standard:
+#            shardingColumn: c_w_id
+#            shardingAlgorithmName: mod_5
+#
+#      item:
+#        actualDataNodes: ds_${0..4}.item
+#        databaseStrategy:
+#          standard:
+#            shardingColumn: i_id
+#            shardingAlgorithmName: mod_5
+#
+#      history:
+#        actualDataNodes: ds_${0..4}.history
+#        databaseStrategy:
+#          standard:
+#            shardingColumn: h_w_id
+#            shardingAlgorithmName: mod_5
+#
+#      oorder:
+#        actualDataNodes: ds_${0..4}.oorder
+#        databaseStrategy:
+#          standard:
+#            shardingColumn: o_w_id
+#            shardingAlgorithmName: mod_5
+#
+#      stock:
+#        actualDataNodes: ds_${0..4}.stock
+#        databaseStrategy:
+#          standard:
+#            shardingColumn: s_w_id
+#            shardingAlgorithmName: mod_5
+#
+#      new_order:
+#        actualDataNodes: ds_${0..4}.new_order
+#        databaseStrategy:
+#          standard:
+#            shardingColumn: no_w_id
+#            shardingAlgorithmName: mod_5
+#
+#      order_line:
+#        actualDataNodes: ds_${0..4}.order_line
+#        databaseStrategy:
+#          standard:
+#            shardingColumn: ol_w_id
+#            shardingAlgorithmName: mod_5
+#
+#    shardingAlgorithms:
+#      mod_5:
+#        type: MOD
+#        props:
+#          sharding-count: 5
+#      mod_4:
+#        type: MOD
+#        props:
+#          sharding-count: 4
+#      mod_2:
+#        type: MOD
+#        props:
+#          sharding-count: 2
 
-      warehouse:
-        actualDataNodes: ds_${0..3}.warehouse
-        databaseStrategy:
-          standard:
-            shardingColumn: w_id
-            shardingAlgorithmName: mod_4
-
-      district:
-        actualDataNodes: ds_${0..3}.district
-        databaseStrategy:
-          standard:
-            shardingColumn: d_w_id
-            shardingAlgorithmName: mod_4
-
-      customer:
-        actualDataNodes: ds_${0..3}.customer
-        databaseStrategy:
-          standard:
-            shardingColumn: c_w_id
-            shardingAlgorithmName: mod_4
-
-      item:
-        actualDataNodes: ds_${0..3}.item
-        databaseStrategy:
-          standard:
-            shardingColumn: i_id
-            shardingAlgorithmName: mod_4
-
-      history:
-        actualDataNodes: ds_${0..3}.history
-        databaseStrategy:
-          standard:
-            shardingColumn: h_w_id
-            shardingAlgorithmName: mod_4
-
-      oorder:
-        actualDataNodes: ds_${0..3}.oorder
-        databaseStrategy:
-          standard:
-            shardingColumn: o_w_id
-            shardingAlgorithmName: mod_4
-
-      stock:
-        actualDataNodes: ds_${0..3}.stock
-        databaseStrategy:
-          standard:
-            shardingColumn: s_w_id
-            shardingAlgorithmName: mod_4
-
-      new_order:
-        actualDataNodes: ds_${0..3}.new_order
-        databaseStrategy:
-          standard:
-            shardingColumn: no_w_id
-            shardingAlgorithmName: mod_4
-
-      order_line:
-        actualDataNodes: ds_${0..3}.order_line
-        databaseStrategy:
-          standard:
-            shardingColumn: ol_w_id
-            shardingAlgorithmName: mod_4
-
-    shardingAlgorithms:
-      mod_4:
-        type: MOD
-        props:
-          sharding-count: 4
-      mod_2:
-        type: MOD
-        props:
-          sharding-count: 2
 #rules:
 #- !SHARDING
 #  tables:
