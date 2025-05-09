@@ -28,7 +28,11 @@ import org.apache.shardingsphere.db.protocol.postgresql.packet.command.query.sim
 import org.apache.shardingsphere.db.protocol.postgresql.packet.generic.PostgreSQLCommandCompletePacket;
 import org.apache.shardingsphere.db.protocol.postgresql.packet.handshake.PostgreSQLParameterStatusPacket;
 import org.apache.shardingsphere.infra.database.type.DatabaseType;
+import org.apache.shardingsphere.infra.hint.HintValueContext;
 import org.apache.shardingsphere.infra.util.spi.type.typed.TypedSPILoader;
+import org.apache.shardingsphere.mode.metadata.MetaDataContexts;
+import org.apache.shardingsphere.parser.rule.SQLParserRule;
+import org.apache.shardingsphere.proxy.backend.context.ProxyContext;
 import org.apache.shardingsphere.proxy.backend.handler.ProxyBackendHandler;
 import org.apache.shardingsphere.proxy.backend.handler.ProxyBackendHandlerFactory;
 import org.apache.shardingsphere.proxy.backend.response.header.ResponseHeader;
@@ -44,8 +48,10 @@ import org.apache.shardingsphere.sql.parser.sql.common.segment.dal.VariableAssig
 import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.dal.EmptyStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.dal.SetStatement;
+import org.apache.shardingsphere.sql.parser.sql.common.statement.dml.InsertStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.tcl.CommitStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.tcl.RollbackStatement;
+import org.apache.shardingsphere.sql.parser.sql.common.util.SQLUtils;
 import org.apache.shardingsphere.sql.parser.sql.common.value.identifier.IdentifierValue;
 
 import java.sql.SQLException;
@@ -69,12 +75,51 @@ public final class PostgreSQLComQueryExecutor implements QueryCommandExecutor {
     
     public PostgreSQLComQueryExecutor(final PortalContext portalContext, final PostgreSQLComQueryPacket comQueryPacket, final ConnectionSession connectionSession) throws SQLException {
         this.portalContext = portalContext;
-        proxyBackendHandler = ProxyBackendHandlerFactory.newInstance(TypedSPILoader.getService(DatabaseType.class, "PostgreSQL"), comQueryPacket.getSql(), connectionSession);
+        DatabaseType databaseType = TypedSPILoader.getService(DatabaseType.class, "PostgreSQL");
+        SQLStatement sqlStatement = parseSql1(comQueryPacket.getSql(), databaseType);
+
+        if (sqlStatement instanceof InsertStatement) {
+            proxyBackendHandler = ProxyBackendHandlerFactory.newInstance(databaseType, comQueryPacket.getSql(), sqlStatement, connectionSession, new HintValueContext());
+        } else {
+            List<SQLStatement> sqlStatements = parseSql(comQueryPacket.getSql(), databaseType);
+            if (sqlStatements.size() <= 1) {
+                proxyBackendHandler = ProxyBackendHandlerFactory.newInstance(databaseType, comQueryPacket.getSql(), sqlStatement, connectionSession, new HintValueContext());
+            } else {
+                proxyBackendHandler = new PostgreSQLMultiStatementsHandler(connectionSession, sqlStatements, comQueryPacket.getSql());
+            }
+        }
+    }
+
+    private SQLStatement parseSql1(final String sql, final DatabaseType databaseType) {
+        if (SQLUtils.trimComment(sql).isEmpty()) {
+            return new EmptyStatement();
+        }
+        MetaDataContexts metaDataContexts = ProxyContext.getInstance().getContextManager().getMetaDataContexts();
+        SQLParserRule sqlParserRule = metaDataContexts.getMetaData().getGlobalRuleMetaData().getSingleRule(SQLParserRule.class);
+        return sqlParserRule.getSQLParserEngine(databaseType.getType()).parse(sql, false);
+    }
+
+    private List<SQLStatement> parseSql(final String sql, final DatabaseType databaseType) {
+        List<SQLStatement> result = new LinkedList<>();
+        if (SQLUtils.trimComment(sql).isEmpty()) {
+            result.add(new EmptyStatement());
+            return result;
+        }
+        List<String> singleSqls = SQLUtils.splitMultiSQL(sql);
+        if (singleSqls.isEmpty()) {
+            result.add(new EmptyStatement());
+        } else {
+            MetaDataContexts metaDataContexts = ProxyContext.getInstance().getContextManager().getMetaDataContexts();
+            SQLParserRule sqlParserRule = metaDataContexts.getMetaData().getGlobalRuleMetaData().getSingleRule(SQLParserRule.class);
+            for (String each : singleSqls) {
+                result.add(sqlParserRule.getSQLParserEngine(databaseType.getType()).parse(each, false));
+            }
+        }
+        return result;
     }
     
     @Override
     public Collection<DatabasePacket<?>> execute() throws SQLException {
-        // TODO: ZQY
         List<ResponseHeader> responseHeader = proxyBackendHandler.execute();
         if (responseHeader.get(0) instanceof QueryResponseHeader) {
             return Collections.singleton(createRowDescriptionPacket((QueryResponseHeader) responseHeader.get(0)));

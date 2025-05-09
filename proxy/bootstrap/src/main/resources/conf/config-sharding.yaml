@@ -22,18 +22,18 @@
 # 
 ######################################################################################################
 
-databaseName: harp
+databaseName: txnsails
 
 dataSources:
   ds_0:
-    url: jdbc:postgresql://127.0.0.1:5432/demo_ds_0
-    username: postgres
-    password: postgres
+    url: jdbc:postgresql://10.77.70.86:5432/harp?sslmode=disable&reWriteBatchedInserts=true
+    username: zqy
+    password: zqy
     connectionTimeoutMilliseconds: 30000
     idleTimeoutMilliseconds: 60000
     maxLifetimeMilliseconds: 1800000
-    maxPoolSize: 50
-    minPoolSize: 1
+    maxPoolSize: 256
+    minPoolSize: 128
 #  ds_1:
 #    url: jdbc:postgresql://127.0.0.1:5432/demo_ds_1
 #    username: postgres
@@ -51,9 +51,10 @@ rules:
   tables:
     usertable:
       actualDataNodes: ds_0.usertable
-      tableStrategy:
-        standard:
-          shardingColumn: ycsb_key
+#      tableStrategy:
+#        standard:
+#          shardingColumn: ycsb_key
+#          shardingAlgorithmName: database_inline
 #  defaultDatabaseStrategy:
 #    standard:
 #      shardingColumn: user_id
@@ -69,7 +70,7 @@ rules:
 #    database_inline:
 #      type: INLINE
 #      props:
-#        algorithm-expression: ds_${user_id % 2}
+#        algorithm-expression: ds_0
 #    t_order_inline:
 #      type: INLINE
 #      props:

@@ -271,6 +271,7 @@ public final class ProxySQLExecutor {
                     }
                 }
             }
+            // TODO: handle read write set
         } catch (Exception ex) {
             if (lockMetaData != null) {
                 lockMetaData.incCount();
