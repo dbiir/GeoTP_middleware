@@ -111,7 +111,7 @@ public final class Latency {
     }
     
     public void SetAlgorithm(String alg) {
-        this.algorithm = alg.toLowerCase();
+        this.algorithm = alg.toLowerCase().trim();
     }
     
     public boolean NeedDelay() {

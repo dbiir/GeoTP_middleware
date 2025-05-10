@@ -30,8 +30,12 @@ import org.apache.shardingsphere.infra.metadata.user.Grantee;
 import org.apache.shardingsphere.proxy.backend.connector.BackendConnection;
 import org.apache.shardingsphere.proxy.backend.connector.jdbc.statement.JDBCBackendStatement;
 import org.apache.shardingsphere.proxy.backend.session.transaction.TransactionStatus;
+import org.apache.shardingsphere.proxy.backend.txnsails.PreValidationInfo;
 import org.apache.shardingsphere.sql.parser.sql.common.enums.TransactionIsolationLevel;
 import org.apache.shardingsphere.transaction.api.TransactionType;
+
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  * Connection session.
@@ -74,9 +78,29 @@ public final class ConnectionSession {
     private volatile String executionId;
     
     private QueryContext queryContext;
+
+    private List<PreValidationInfo> validationInfos = new LinkedList<>();
+
+    private int validationPhash;
     
     public void setPreAbort(boolean preAbort) {
         backendConnection.setPreAbort(preAbort);
+    }
+
+    public void addValidationInfos(final PreValidationInfo info) {
+        validationInfos.add(info);
+    }
+
+    public void setValidationVersion(long version, String tableName, long key) {
+        for (PreValidationInfo info : validationInfos) {
+            if (info.getTable().equals(tableName) && info.getKey() == key) {
+                info.setVersion(version);
+            }
+        }
+    }
+
+    public void incValidationPhase() {
+        validationPhash++;
     }
     
     public ConnectionSession(final DatabaseType protocolType, final TransactionType initialTransactionType, final AttributeMap attributeMap) {

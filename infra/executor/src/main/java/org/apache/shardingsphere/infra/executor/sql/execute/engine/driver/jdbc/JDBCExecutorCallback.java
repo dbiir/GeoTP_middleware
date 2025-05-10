@@ -99,7 +99,7 @@ public abstract class JDBCExecutorCallback<T> implements ExecutorCallback<JDBCEx
             executionUnit.setRealExecuteLatency((int) (executeTime / 1000000));
             sqlExecutionHook.finishSuccess();
             finishReport(jdbcExecutionUnit);
-            System.out.println("execute time: " + (System.nanoTime() - start) / 1000000 + " ms");
+//            System.out.println("execute time: " + (System.nanoTime() - start) / 1000000 + " ms");
             return result;
         } catch (final SQLException ex) {
             if (!storageType.equals(protocolType)) {

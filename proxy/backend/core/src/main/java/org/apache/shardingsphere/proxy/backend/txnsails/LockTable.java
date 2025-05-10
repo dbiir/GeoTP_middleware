@@ -15,12 +15,13 @@ public class LockTable {
   private static final LockTable INSTANCE;
   private static final int SMALL_BANK_HASH_SIZE = 4000000;
   private static final int YCSB_HASH_SIZE = 100000;
-  private int LOAD_THREAD = 16;
+  public static int LOAD_THREAD = 16;
   private int HASH_SIZE;
-    private HashMap<String, LinkedList<ValidationLock>[]> validationLocks = new HashMap<>(4);
+  private HashMap<String, LinkedList<ValidationLock>[]> validationLocks = new HashMap<>(4);
   private HashMap<String, ReentrantReadWriteLock[]> validationBucketLocks = new HashMap<>(4);
   private final long lockWaitTimeout = 10;
   private final int maxRetry = 5;
+  private String workload;
   public final String GetSavingsBalance =
           "SELECT vid FROM savings WHERE custid = ?";
   public final String GetCheckingBalance =
@@ -36,7 +37,24 @@ public class LockTable {
 
   }
 
+  public String generateFetchSQL(final PreValidationInfo info) {
+    if (workload.equals("smallbank")) {
+      if (info.getTable().equalsIgnoreCase("savings")) {
+        return GetSavingsBalance;
+      } else if (info.getTable().equalsIgnoreCase("checking")) {
+        return GetCheckingBalance;
+      }
+    } else if (workload.equals("ycsb")) {
+      return GetUserTable;
+    } else {
+      System.out.println("unknown workload: " + workload);
+      return "";
+    }
+    return "";
+  }
+
   public void initHotspot(String workload, List<Connection> connections) throws SQLException {
+    this.workload = workload;
     if (workload.equals("smallbank")) {
       this.HASH_SIZE = SMALL_BANK_HASH_SIZE;
       this.LOAD_THREAD = 1;
@@ -101,6 +119,7 @@ public class LockTable {
 
       executor.shutdown();
     } else if (workload.equals("ycsb")) {
+      System.out.println("init ycsb lock table");
       this.HASH_SIZE = YCSB_HASH_SIZE;
       // init validation locks
       validationLocks.put("usertable", new LinkedList[HASH_SIZE]);

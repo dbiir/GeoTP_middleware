@@ -49,6 +49,13 @@ public abstract class AbstractMemoryQueryResult implements QueryResult {
     private long rowCount;
     
     private boolean wasNull;
+
+    // for txnsails validation
+    public long version;
+
+    public long id;
+
+    public String sql;
     
     protected AbstractMemoryQueryResult(final QueryResultMetaData metaData, final Collection<MemoryQueryResultDataRow> rows) {
         this.metaData = metaData;

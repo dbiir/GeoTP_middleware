@@ -30,13 +30,16 @@ import org.apache.shardingsphere.infra.binder.statement.ddl.CloseStatementContex
 import org.apache.shardingsphere.infra.binder.statement.ddl.CursorStatementContext;
 import org.apache.shardingsphere.infra.binder.statement.dml.InsertStatementContext;
 import org.apache.shardingsphere.infra.binder.statement.dml.SelectStatementContext;
+import org.apache.shardingsphere.infra.binder.statement.dml.UpdateStatementContext;
 import org.apache.shardingsphere.infra.binder.type.CursorAvailable;
 import org.apache.shardingsphere.infra.config.props.ConfigurationPropertyKey;
 import org.apache.shardingsphere.infra.context.kernel.KernelProcessor;
 import org.apache.shardingsphere.infra.context.refresher.MetaDataRefreshEngine;
 import org.apache.shardingsphere.infra.database.type.DatabaseType;
 import org.apache.shardingsphere.infra.database.type.DatabaseTypeEngine;
+import org.apache.shardingsphere.infra.executor.kernel.model.ExecutionGroup;
 import org.apache.shardingsphere.infra.executor.sql.context.ExecutionContext;
+import org.apache.shardingsphere.infra.executor.sql.context.ExecutionUnit;
 import org.apache.shardingsphere.infra.executor.sql.execute.engine.SQLExecutorExceptionHandler;
 import org.apache.shardingsphere.infra.executor.sql.execute.engine.driver.jdbc.JDBCExecutionUnit;
 import org.apache.shardingsphere.infra.executor.sql.execute.engine.driver.jdbc.JDBCExecutor;
@@ -74,6 +77,9 @@ import org.apache.shardingsphere.proxy.backend.response.header.query.QueryRespon
 import org.apache.shardingsphere.proxy.backend.response.header.update.UpdateResponseHeader;
 import org.apache.shardingsphere.proxy.backend.session.ConnectionSession;
 import org.apache.shardingsphere.proxy.backend.session.transaction.TransactionStatus;
+import org.apache.shardingsphere.proxy.backend.txnsails.LockType;
+import org.apache.shardingsphere.proxy.backend.txnsails.PreValidationInfo;
+import org.apache.shardingsphere.proxy.backend.txnsails.ValidationLock;
 import org.apache.shardingsphere.sharding.merge.common.IteratorStreamMergedResult;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.dml.DMLStatement;
@@ -269,6 +275,57 @@ public final class DatabaseConnector implements DatabaseBackendHandler {
         }
         return result;
     }
+
+    private String getTableNameFromSQLStatementContext(SQLStatementContext sqlStatementContext) {
+        String tableName = "";
+        if (sqlStatementContext instanceof SelectStatementContext) {
+            SelectStatementContext selectStatementContext = (SelectStatementContext) sqlStatementContext;
+            tableName = selectStatementContext.getTableName().size() == 1 ? selectStatementContext.getTableName().get(0) : "";
+        } else if (sqlStatementContext instanceof UpdateStatementContext) {
+            UpdateStatementContext updateStatementContext = (UpdateStatementContext) sqlStatementContext;
+            tableName = updateStatementContext.getTableName().size() == 1 ? updateStatementContext.getTableName().get(0) : "";
+        }
+        return tableName;
+    }
+
+    private int getKeyFromSQLStatementContext(QueryContext queryContext) {
+        int key = -1;
+        if (queryContext.getSqlStatementContext() instanceof SelectStatementContext) {
+            SelectStatementContext selectStatementContext = (SelectStatementContext) queryContext.getSqlStatementContext();
+            key = selectStatementContext.getKey().get(0);
+        } else if (queryContext.getSqlStatementContext() instanceof UpdateStatementContext) {
+            UpdateStatementContext updateStatementContext = (UpdateStatementContext) queryContext.getSqlStatementContext();
+            key = updateStatementContext.getKey().get(0);
+        }
+        if (key == -1) {
+            key = (int) queryContext.getParameters().get(queryContext.getParameters().size() - 1);
+        }
+        return key;
+    }
+
+    private void prepareValidationSet(QueryContext queryContext, QueryResult queryResult) throws SQLException {
+        String tableName = getTableNameFromSQLStatementContext(queryContext.getSqlStatementContext());
+        if (!tableName.contains("usertable")) {
+            return;
+        }
+        int key = getKeyFromSQLStatementContext(queryContext);
+        // find the validation lock
+        PreValidationInfo info = null;
+        if (key != -1) {
+            if (queryContext.getSqlStatementContext() instanceof SelectStatementContext)
+                info = new PreValidationInfo(tableName, key, LockType.SH);
+            else if (queryContext.getSqlStatementContext() instanceof UpdateStatementContext)
+                info = new PreValidationInfo(tableName, key, LockType.EX);
+            else return;
+            if (!queryResult.next()) {
+                return;
+            }
+
+            long v = (long) queryResult.getValue(1, Long.class);
+            info.setVersion(v);
+            this.backendConnection.getConnectionSession().addValidationInfos(info);
+        }
+    }
     
     @SuppressWarnings({"unchecked", "rawtypes"})
     private ResponseHeader doExecute(final ExecutionContext executionContext) throws SQLException {
@@ -279,6 +336,9 @@ public final class DatabaseConnector implements DatabaseBackendHandler {
         List result = proxySQLExecutor.execute(executionContext);
         refreshMetaData(executionContext);
         Object executeResultSample = result.iterator().next();
+        if (executeResultSample instanceof QueryResult) {
+            prepareValidationSet(executionContext.getQueryContext(), (QueryResult) executeResultSample);
+        }
         return executeResultSample instanceof QueryResult ? processExecuteQuery(executionContext, result, (QueryResult) executeResultSample) : processExecuteUpdate(executionContext, result);
     }
     

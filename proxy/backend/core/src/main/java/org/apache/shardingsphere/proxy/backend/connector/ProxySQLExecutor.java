@@ -206,81 +206,14 @@ public final class ProxySQLExecutor {
         } catch (final SQLException ex) {
             return getSaneExecuteResults(executionContext, ex);
         }
-        
-        boolean needStat = LocalLockTable.getInstance().needStatistic();
-        boolean op = false;
-        boolean isHot = false;
-        String tableName = "";
-        int idx = -1;
-        long startTime = 0;
-        double executionTime;
-        SQLStatement sqlStatement = executionContext.getQueryContext().getSqlStatementContext().getSqlStatement();
-        if (sqlStatement instanceof SelectStatement) {
-            if (((SelectStatement) sqlStatement).getFrom() != null && ((SelectStatement) sqlStatement).getFrom() instanceof SimpleTableSegment) {
-                tableName = ((SimpleTableSegment) ((SelectStatement) sqlStatement).getFrom()).getTableName().getIdentifier().getValue();
-                if (LocalLockTable.getInstance().isRegisterTable(tableName)) {
-                    op = true;
-                    isHot = true;
-                }
-            }
-            if (isHot && ((SelectStatement) sqlStatement).getWhere().isPresent() &&
-                    ((SelectStatement) sqlStatement).getWhere().get().getExpr() instanceof BinaryOperationExpression) {
-                idx = (int) ((LiteralExpressionSegment) ((BinaryOperationExpression) ((SelectStatement) sqlStatement).getWhere().get().getExpr()).getRight()).getLiterals();
-            }
-        } else if (sqlStatement instanceof UpdateStatement) {
-            if (((MySQLUpdateStatement) sqlStatement).getTable() != null && ((MySQLUpdateStatement) sqlStatement).getTable() instanceof SimpleTableSegment) {
-                tableName = ((SimpleTableSegment) ((MySQLUpdateStatement) sqlStatement).getTable()).getTableName().getIdentifier().getValue();
-                if (LocalLockTable.getInstance().isRegisterTable(tableName)) {
-                    op = false;
-                }
-            }
-            // if (((UpdateStatement) sqlStatement).getWhere().isPresent() &&
-            // (((UpdateStatement) sqlStatement).getWhere().get().getExpr()) instanceof BinaryOperationExpression) {
-            // idx = (int) ((LiteralExpressionSegment) ((BinaryOperationExpression) ((UpdateStatement) sqlStatement).getWhere().get().getExpr()).getRight()).getLiterals();
-            // }
-        }
-        LockMetaData lockMetaData = LocalLockTable.getInstance().getLockMetaData(tableName, idx);
-        
-        // boolean needPreAbort = analyseSingleSQL(tableName, idx);
-        // if (!needPreAbort) {
-        // throw new SQLException("this transaction is most likely to timeout, pre-abort in harp");
-        // }
-        
+
         executeTransactionHooksBeforeExecuteSQL(backendConnection.getConnectionSession());
-        if (needStat && idx >= 0)
-            startTime = System.nanoTime();
+
         List<ExecuteResult> results;
         try {
-            if (Latency.getInstance().NeedDelay()) {
-                startTime = System.nanoTime();
-                if (lockMetaData != null) {
-                    lockMetaData.incProcessing();
-                }
-            }
-            
             results = jdbcExecutor.execute(executionContext.getQueryContext(), executionGroupContext, isReturnGeneratedKeys, isExceptionThrown);
-            if (Latency.getInstance().NeedDelay()) {
-                if (lockMetaData != null) {
-                    lockMetaData.incCount();
-                    lockMetaData.decProcessing();
-                    double networkThreshold = Latency.getInstance().getLongestLatency();
-                    executionTime = (System.nanoTime() - startTime) * 1.0 / 1000000;
-                    if (executionTime < 2 * networkThreshold) { // 2RTT
-                        lockMetaData.incSuccessCount();
-                        lockMetaData.updateLatency(executionTime);
-                    }
-                }
-            }
-            // TODO: handle read write set
         } catch (Exception ex) {
-            if (lockMetaData != null) {
-                lockMetaData.incCount();
-                lockMetaData.decProcessing();
-            }
             throw ex;
-        }
-        if (needStat && idx >= 0) {
-            LocalLockTable.getInstance().updateLockTime(tableName, idx, (System.nanoTime() - startTime) * 1.0 / 1000000, op);
         }
         return results;
     }

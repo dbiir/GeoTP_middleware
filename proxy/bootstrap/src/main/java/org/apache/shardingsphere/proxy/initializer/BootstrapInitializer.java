@@ -19,6 +19,7 @@ package org.apache.shardingsphere.proxy.initializer;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.shardingsphere.infra.config.database.DatabaseConfiguration;
 import org.apache.shardingsphere.infra.config.mode.ModeConfiguration;
 import org.apache.shardingsphere.infra.config.props.ConfigurationPropertyKey;
 import org.apache.shardingsphere.infra.instance.metadata.InstanceMetaData;
@@ -34,9 +35,15 @@ import org.apache.shardingsphere.proxy.backend.config.ProxyConfiguration;
 import org.apache.shardingsphere.proxy.backend.config.YamlProxyConfiguration;
 import org.apache.shardingsphere.proxy.backend.config.yaml.swapper.YamlProxyConfigurationSwapper;
 import org.apache.shardingsphere.proxy.backend.context.ProxyContext;
+import org.apache.shardingsphere.proxy.backend.txnsails.LockTable;
 import org.apache.shardingsphere.proxy.version.ShardingSphereProxyVersion;
 
+import javax.sql.DataSource;
+import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Bootstrap initializer.
@@ -59,7 +66,26 @@ public final class BootstrapInitializer {
         ContextManager contextManager = createContextManager(proxyConfig, modeConfig, port, force);
         ProxyContext.init(contextManager);
         contextManagerInitializedCallback(contextManager);
+        // txnSails
+        initTxnSailsLockTable(proxyConfig);
         ShardingSphereProxyVersion.setVersion(contextManager);
+    }
+
+    private void initTxnSailsLockTable(ProxyConfiguration proxyConfig) throws SQLException {
+        DataSource ds = null;
+        List<Connection> connectionList = new LinkedList<>();
+        for (Map.Entry<String, DatabaseConfiguration> entry : proxyConfig.getDatabaseConfigurations().entrySet()) {
+            if (ds != null) {
+                continue;
+            }
+            ds = entry.getValue().getDataSources().values().iterator().next();
+            for (int i = 0; i < LockTable.LOAD_THREAD; i++) {
+                connectionList.add(ds.getConnection());
+            }
+        }
+        if (ds != null) {
+            LockTable.getInstance().initHotspot("ycsb", connectionList);
+        }
     }
     
     private ContextManager createContextManager(final ProxyConfiguration proxyConfig, final ModeConfiguration modeConfig, final int port, final boolean force) throws SQLException {

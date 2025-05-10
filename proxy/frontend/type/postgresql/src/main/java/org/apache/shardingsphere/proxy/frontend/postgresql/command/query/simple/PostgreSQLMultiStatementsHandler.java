@@ -1,6 +1,5 @@
 package org.apache.shardingsphere.proxy.frontend.postgresql.command.query.simple;
 
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.shardingsphere.infra.binder.QueryContext;
 import org.apache.shardingsphere.infra.binder.SQLStatementContextFactory;
@@ -33,9 +32,9 @@ import org.apache.shardingsphere.infra.executor.sql.prepare.driver.jdbc.Statemen
 import org.apache.shardingsphere.infra.metadata.database.ShardingSphereDatabase;
 import org.apache.shardingsphere.infra.metadata.database.rule.ShardingSphereRuleMetaData;
 import org.apache.shardingsphere.infra.rule.ShardingSphereRule;
-import org.apache.shardingsphere.infra.statistics.network.Latency;
 import org.apache.shardingsphere.infra.util.spi.type.typed.TypedSPILoader;
 import org.apache.shardingsphere.mode.metadata.MetaDataContexts;
+import org.apache.shardingsphere.parser.rule.SQLParserRule;
 import org.apache.shardingsphere.proxy.backend.connector.jdbc.statement.JDBCBackendStatement;
 import org.apache.shardingsphere.proxy.backend.context.BackendExecutorContext;
 import org.apache.shardingsphere.proxy.backend.context.ProxyContext;
@@ -45,7 +44,10 @@ import org.apache.shardingsphere.proxy.backend.response.header.query.QueryHeader
 import org.apache.shardingsphere.proxy.backend.response.header.query.QueryResponseHeader;
 import org.apache.shardingsphere.proxy.backend.response.header.update.UpdateResponseHeader;
 import org.apache.shardingsphere.proxy.backend.session.ConnectionSession;
+import org.apache.shardingsphere.proxy.backend.txnsails.LockType;
+import org.apache.shardingsphere.proxy.backend.txnsails.PreValidationInfo;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
+import org.apache.shardingsphere.sql.parser.sql.common.statement.dal.EmptyStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.util.SQLUtils;
 
 import java.sql.Connection;
@@ -155,16 +157,36 @@ public class PostgreSQLMultiStatementsHandler implements ProxyBackendHandler {
             new ExecutionGroupReportContext(connectionSession.getDatabaseName(), connectionSession.getGrantee(), connectionSession.getExecutionId()));
 
     boolean onePhase = executionGroupContext.getInputGroups().size() == 1;
-    for (ExecutionGroup<JDBCExecutionUnit> each : executionGroupContext.getInputGroups()) {
-      ExecutionUnit executionUnit = each.getInputs().get(0).getExecutionUnit();
-
-      System.out.println("[" + Thread.currentThread().getName() + "]" +
-              " ds: " + executionUnit.getDataSourceName() +
-              " probability: " + executionUnit.getAbortProbability() +
-              " latency: " + executionUnit.getLocalExecuteLatency());
-    }
+    prepareValidationSet((List<ExecutionGroup<JDBCExecutionUnit>>) executionGroupContext.getInputGroups());
 
     return executeMultiStatements(executionGroupContext);
+  }
+
+  private void prepareValidationSet(List<ExecutionGroup<JDBCExecutionUnit>> groupUnits) {
+    if (groupUnits.isEmpty()) {
+      return;
+    }
+
+    for (ExecutionGroup<JDBCExecutionUnit> each : groupUnits) {
+      ExecutionUnit executionUnit = each.getInputs().get(0).getExecutionUnit();
+      String dataSourceName = executionUnit.getDataSourceName();
+      for (QueryContext queryContext : dataSourcesToQueryContext.get(dataSourceName)) {
+        String tableName = getTableNameFromSQLStatementContext(queryContext.getSqlStatementContext());
+        if (!tableName.contains("usertable")) {
+          continue;
+        }
+        int key = getKeyFromSQLStatementContext(queryContext.getSqlStatementContext());
+        // find the validation lock
+        if (key != -1) {
+          if (queryContext.getSqlStatementContext() instanceof SelectStatementContext)
+            this.connectionSession.addValidationInfos(new PreValidationInfo(tableName, key, LockType.SH));
+          else if (queryContext.getSqlStatementContext() instanceof UpdateStatementContext)
+            this.connectionSession.addValidationInfos(new PreValidationInfo(tableName, key, LockType.EX));
+        }
+
+        executionUnit.addKeys(tableName, key);
+      }
+    }
   }
 
   private static class BatchedJDBCExecutorCallback extends JDBCExecutorCallback<List<ExecuteResult>> {
@@ -177,14 +199,18 @@ public class PostgreSQLMultiStatementsHandler implements ProxyBackendHandler {
     protected List<ExecuteResult> executeSQL(final String sql, final Statement statement, final ConnectionMode connectionMode, final DatabaseType storageType) throws SQLException {
       boolean resultsAvailable = false;
       try {
-        long start = System.nanoTime();
         resultsAvailable = statement.execute(sql);
 
         List<ExecuteResult> list = new ArrayList<>();
         while (true) {
           if (resultsAvailable) {
             ResultSet rs = statement.getResultSet();
-            list.add(createQueryResult(rs, connectionMode, storageType));
+            QueryResult res = createQueryResult(rs, connectionMode, storageType);
+            if (res instanceof JDBCMemoryQueryResult) {
+              ((JDBCMemoryQueryResult) res).version = rs.getLong(1);
+              ((JDBCMemoryQueryResult) res).sql = sql;
+            }
+            list.add(res);
           } else {
             int update_cnt = statement.getUpdateCount();
             if (update_cnt != -1) {
@@ -195,7 +221,6 @@ public class PostgreSQLMultiStatementsHandler implements ProxyBackendHandler {
           }
 
           resultsAvailable = statement.getMoreResults();
-//                    System.out.println("True execute time: " + ((System.nanoTime() - start) / 1000000) + "ms");
         }
 
         return list;
@@ -282,8 +307,28 @@ public class PostgreSQLMultiStatementsHandler implements ProxyBackendHandler {
             meta.isAutoIncrement(colIndex));
   }
 
+  private List<SQLStatement> parseSql(final String sql, final DatabaseType databaseType) {
+    List<SQLStatement> result = new LinkedList<>();
+    if (SQLUtils.trimComment(sql).isEmpty()) {
+      result.add(new EmptyStatement());
+      return result;
+    }
+    List<String> singleSqls = SQLUtils.splitMultiSQL(sql);
+    if (singleSqls.isEmpty()) {
+      result.add(new EmptyStatement());
+    } else {
+      MetaDataContexts metaDataContexts = ProxyContext.getInstance().getContextManager().getMetaDataContexts();
+      SQLParserRule sqlParserRule = metaDataContexts.getMetaData().getGlobalRuleMetaData().getSingleRule(SQLParserRule.class);
+      for (String each : singleSqls) {
+        result.add(sqlParserRule.getSQLParserEngine(databaseType.getType()).parse(each, false));
+      }
+    }
+    return result;
+  }
+
   private List<ResponseHeader> executeMultiStatements(final ExecutionGroupContext<JDBCExecutionUnit> executionGroupContext) throws SQLException {
     boolean isExceptionThrown = SQLExecutorExceptionHandler.isExceptionThrown();
+    DatabaseType databaseType = TypedSPILoader.getService(DatabaseType.class, "PostgreSQL");
     long start = System.nanoTime();
     List<ResponseHeader> result = new LinkedList<>();
     Map<String, DatabaseType> storageTypes = metaDataContexts.getMetaData().getDatabase(connectionSession.getDatabaseName()).getResourceMetaData().getStorageTypes();
@@ -312,6 +357,24 @@ public class PostgreSQLMultiStatementsHandler implements ProxyBackendHandler {
             try {
               ((QueryResult) obj).close();
             } catch (SQLException ignore) {
+            }
+            Long v = (Long) ((QueryResult) obj).getValue(1, Long.class);
+            String tableName = meta.getTableName(1);
+            if (obj instanceof JDBCMemoryQueryResult) {
+              String sql = ((JDBCMemoryQueryResult) obj).sql;
+              for (ExecutionGroup<JDBCExecutionUnit> group: executionGroupContext.getInputGroups()) {
+                for (JDBCExecutionUnit unit: group.getInputs()) {
+                  if (unit.getExecutionUnit().getSqlUnit().getSql().equals(sql)) {
+                    long key = unit.getExecutionUnit().getKeys().get(tableName).get(0);
+                    connectionSession.setValidationVersion(v, tableName, key);
+                  }
+                }
+              }
+//              List<SQLStatement> statements = parseSql(sql, databaseType);
+//              if (statements.size() > 1) {
+//                System.out.println("error statement size is large that 1, sql: " + sql);
+//              }
+//              ((JDBCMemoryQueryResult) obj).id = getKeyFromSQLStatementContext(statements.get(0));
             }
           } else {
             if (!first) {

@@ -20,6 +20,8 @@ package org.apache.shardingsphere.proxy.backend.handler.transaction;
 import org.apache.shardingsphere.dialect.exception.transaction.InTransactionException;
 import org.apache.shardingsphere.infra.database.type.SchemaSupportedDatabaseType;
 import org.apache.shardingsphere.infra.database.type.dialect.MySQLDatabaseType;
+import org.apache.shardingsphere.infra.executor.sql.execute.engine.ConnectionMode;
+import org.apache.shardingsphere.infra.statistics.network.Latency;
 import org.apache.shardingsphere.infra.util.exception.ShardingSpherePreconditions;
 import org.apache.shardingsphere.proxy.backend.connector.TransactionManager;
 import org.apache.shardingsphere.proxy.backend.connector.jdbc.transaction.BackendTransactionManager;
@@ -27,6 +29,9 @@ import org.apache.shardingsphere.proxy.backend.handler.ProxyBackendHandler;
 import org.apache.shardingsphere.proxy.backend.response.header.ResponseHeader;
 import org.apache.shardingsphere.proxy.backend.response.header.update.UpdateResponseHeader;
 import org.apache.shardingsphere.proxy.backend.session.ConnectionSession;
+import org.apache.shardingsphere.proxy.backend.txnsails.LockTable;
+import org.apache.shardingsphere.proxy.backend.txnsails.LockType;
+import org.apache.shardingsphere.proxy.backend.txnsails.PreValidationInfo;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.tcl.*;
 import org.apache.shardingsphere.sql.parser.sql.dialect.statement.mysql.tcl.MySQLSetAutoCommitStatement;
@@ -36,8 +41,7 @@ import org.apache.shardingsphere.sql.parser.sql.dialect.statement.postgresql.tcl
 import org.apache.shardingsphere.sql.parser.sql.dialect.statement.postgresql.tcl.PostgreSQLRollbackStatement;
 import org.apache.shardingsphere.transaction.core.TransactionOperationType;
 
-import java.sql.SQLException;
-import java.sql.SQLFeatureNotSupportedException;
+import java.sql.*;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -79,10 +83,14 @@ public final class TransactionBackendHandler implements ProxyBackendHandler {
                 break;
             case COMMIT:
                 SQLStatement sqlStatement = getSQLStatementByCommit();
+                // TxnSails
+                TxnSailsValidation();
                 backendTransactionManager.commit();
+                TxnSailsAfterCommitOrRollback(true);
                 result.add(new UpdateResponseHeader(sqlStatement));
                 return result;
             case ROLLBACK:
+                TxnSailsAfterCommitOrRollback(false);
                 backendTransactionManager.rollback();
                 break;
             case SET_AUTOCOMMIT:
@@ -152,5 +160,79 @@ public final class TransactionBackendHandler implements ProxyBackendHandler {
         if (statement.isAutoCommit() && connectionSession.getTransactionStatus().isInTransaction()) {
             backendTransactionManager.commit();
         }
+    }
+
+    private void TxnSailsValidation() throws SQLException {
+        if (!Latency.getInstance().NeedDelay()) {
+            return;
+        }
+        long timestamp = System.currentTimeMillis();
+        for (PreValidationInfo info: connectionSession.getValidationInfos()) {
+            try {
+                LockTable.getInstance().tryValidationLock(info.getTable(), timestamp, info.getKey(), info.getType());
+                System.out.println("validation lock acquired for " + info.getTable() + ", key: " + info.getKey());
+                connectionSession.incValidationPhase();
+            } catch (SQLException ex) {
+                releaseTailorValidationLock(connectionSession.getValidationPhash());
+                throw ex;
+            }
+
+            // validate version
+            long v = LockTable.getInstance().getHotspotVersion(info.getTable(), info.getKey());
+            if (v >= 0) {
+                if (v > info.getVersion()) {
+                    String msg = String.format("Validation failed for %s, version %d -> %d", info.getTable(), info.getVersion(), v);
+                    releaseTailorValidationLock(connectionSession.getValidationPhash());
+                    throw new SQLException(msg, "500");
+                }
+            } else {
+                // version not found, so we need to set it
+                Connection conn = connectionSession.getBackendConnection().getConnections("ds_0", 1, ConnectionMode.CONNECTION_STRICTLY).get(0);
+                String sql = LockTable.getInstance().generateFetchSQL(info);
+                try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                    stmt.setLong(1, info.getKey());
+                    ResultSet rs = stmt.executeQuery();
+                    if (!rs.next()) {
+                        String msg = String.format("Validation failed for %s, version not found", info.getTable());
+                        releaseTailorValidationLock(connectionSession.getValidationPhash());
+                        throw new SQLException(msg, "500");
+                    }
+                    long version = rs.getLong(1);
+                    LockTable.getInstance().updateHotspotVersion(info.getTable(), info.getKey(), version);
+                    if (v > version) {
+                        String msg = String.format("Validation failed for %s, version %d -> %d", info.getTable(), version, v);
+                        releaseTailorValidationLock(connectionSession.getValidationPhash());
+                        throw new SQLException(msg, "500");
+                    }
+                } catch (SQLException ex) {
+                    releaseTailorValidationLock(connectionSession.getValidationPhash());
+                    throw ex;
+                }
+            }
+        }
+    }
+
+    private void releaseTailorValidationLock(int phase) {
+        for (int i = phase - 1; i >= 0; i--) {
+            PreValidationInfo info = connectionSession.getValidationInfos().get(i);
+            LockTable.getInstance().releaseValidationLock(info.getTable(), info.getKey(), info.getType());
+            System.out.println("validation lock released for " + info.getTable() + ", key: " + info.getKey());
+        }
+        connectionSession.setValidationPhash(0);
+        connectionSession.getValidationInfos().clear();
+    }
+
+    private void TxnSailsAfterCommitOrRollback(boolean isCommit) {
+        if (!Latency.getInstance().NeedDelay()) {
+            return;
+        }
+        releaseTailorValidationLock(connectionSession.getValidationPhash());
+        for (PreValidationInfo info : connectionSession.getValidationInfos()) {
+            if (info.getType() == LockType.EX) {
+                if (isCommit)
+                    LockTable.getInstance().updateHotspotVersion(info.getTable(), info.getKey(), info.getVersion());
+            }
+        }
+        connectionSession.getValidationInfos().clear();
     }
 }
