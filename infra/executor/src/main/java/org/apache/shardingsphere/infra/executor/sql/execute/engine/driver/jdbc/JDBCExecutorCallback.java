@@ -67,7 +67,7 @@ public abstract class JDBCExecutorCallback<T> implements ExecutorCallback<JDBCEx
                 result.add(executeResult);
             }
         }
-        System.out.println("JDBCExecutorCallback execution time: " + (System.nanoTime() - startTime) / 1000000 + " ms");
+//        System.out.println("JDBCExecutorCallback execution time: " + (System.nanoTime() - startTime) / 1000000 + " ms");
         return result;
     }
     

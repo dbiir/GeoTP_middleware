@@ -216,7 +216,7 @@ public final class TransactionBackendHandler implements ProxyBackendHandler {
         for (int i = phase - 1; i >= 0; i--) {
             PreValidationInfo info = connectionSession.getValidationInfos().get(i);
             LockTable.getInstance().releaseValidationLock(info.getTable(), info.getKey(), info.getType());
-            System.out.println("validation lock released for " + info.getTable() + ", key: " + info.getKey());
+//            System.out.println("validation lock released for " + info.getTable() + ", key: " + info.getKey());
         }
         connectionSession.setValidationPhash(0);
         connectionSession.getValidationInfos().clear();
